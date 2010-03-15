@@ -1,14 +1,16 @@
 #include "locWmGlDisplay.h"
 #include <QDebug>
 #include <QMouseEvent>
-
+#include <fstream>
+#include <QString>
 
 locWmGlDisplay::locWmGlDisplay(QWidget *parent): QGLWidget(parent)
 {
     setWindowTitle("World Model Visualisation");
     viewTranslation[0] = 0.0f;
     viewTranslation[1] = 0.0f;
-    viewTranslation[2] = -700.0f;
+    //viewTranslation[2] = -700.0f;
+    viewTranslation[2] = -0.5f;
     viewOrientation[0] = 0.0f;
     viewOrientation[1] = 0.0f;
     viewOrientation[2] = 0.0f;
@@ -19,6 +21,105 @@ locWmGlDisplay::locWmGlDisplay(QWidget *parent): QGLWidget(parent)
 locWmGlDisplay::~locWmGlDisplay()
 {
     return;
+}
+
+void locWmGlDisplay::LoadModels()
+{
+    qDebug() << "Loading Models...";
+    points.clear();
+    drawOrder.clear();
+    int tempInt;
+    point3d tempPoint;
+    qDebug() << "Loading Points...";
+    std::fstream file("points.txt",std::ios_base::in);
+    if(!file.is_open())
+    {
+        qDebug() << QString("Could not open file: points.txt");
+        return;
+    }
+    while(!file.eof())
+    {
+        file >> tempPoint.x >> tempPoint.y >> tempPoint.z;
+        if(points.size() < 10) qDebug() << "(" << tempPoint.x << "," << tempPoint.y <<"," << tempPoint.z <<")";
+        points.push_back(tempPoint);
+    }
+    file.close();
+    qDebug() << "Loading Drawing Instructions...";
+    file.open("drawOrder.txt",std::ios_base::in);
+    if(!file.is_open())
+    {
+        qDebug() << QString("Could not open file: drawOrder.txt");
+        return;
+    }
+    int maxValue = -1;
+
+    while(!file.eof())
+    {
+        file >> tempInt;
+        if(drawOrder.size() < 10) qDebug() << tempInt;
+        if (tempInt > maxValue) maxValue = tempInt;
+        if(tempInt == -1)
+        {
+            point3d a,b,c, norm;
+            a = points[drawOrder[drawOrder.size()-3]];
+            b = points[drawOrder[drawOrder.size()-2]];
+            c = points[drawOrder[drawOrder.size()-1]];
+            norm = calculateNormal(b, a, c);
+            normals.push_back(norm);
+/*
+            if(normals.size() < 10)
+            {
+                qDebug() << "Calculating Normal";
+                qDebug() << drawOrder[drawOrder.size()-3] << " = (" << a.x << "," << a.y <<"," << a.z <<")";
+                qDebug() << drawOrder[drawOrder.size()-2] << " = (" << b.x << "," << b.y <<"," << b.z <<")";
+                qDebug() << drawOrder[drawOrder.size()-1] << " = (" << c.x << "," << c.y <<"," << c.z <<")";
+                qDebug() << "Normal = (" << norm.x << "," << norm.y <<"," << norm.z <<")";
+            }
+            */
+        }
+        drawOrder.push_back(tempInt);
+
+    }
+    qDebug() << QString("Checking Model...");
+    bool testPassed = (maxValue < (int)points.size());
+    QString status = "Model Check: %1  %2:%3";
+    if(testPassed) status = status.arg("Pass");
+    else status = status.arg("Fail");
+
+    qDebug() << status.arg(maxValue).arg(points.size());
+}
+
+void locWmGlDisplay::drawModel()
+{
+    int index;
+    point3d tempPoint;
+    std::vector<point3d>::iterator normalIterator = normals.begin();
+    glPushMatrix();
+    glShadeModel(GL_SMOOTH);    		// Enable Smooth Shading
+    glColor3f(1.0f,1.0f,1.0f);                                // Set The Color To White
+
+    GLfloat MatDiffuse[]= { 1.0f, 1.0f, 1.0f, 1.0f };		// Diffuse Light Values
+    GLfloat MatSpecular[]= { 0.4f, 0.4f, 0.4f, 1.0f };        // Diffuse Light Values
+
+    glMaterialfv(GL_FRONT_AND_BACK,GL_SPECULAR,MatSpecular);
+    glMaterialfv(GL_FRONT_AND_BACK,GL_DIFFUSE,MatDiffuse);
+
+   for(unsigned int i = 0; i < drawOrder.size(); i++)
+    {
+        glBegin(GL_POLYGON);
+        glNormal3f((*normalIterator).x,(*normalIterator).y,(*normalIterator).z);	// Set The Normal
+        normalIterator++;
+        while(drawOrder[i] != -1)
+        {
+            index = drawOrder[i];
+            tempPoint = points[index];
+            //qDebug() << index << "->" << "(" << tempPoint.x << "," << tempPoint.y <<"," << tempPoint.z <<")";
+            glVertex3f(tempPoint.x, tempPoint.y, tempPoint.z);
+            i++;
+        }
+        glEnd();
+    }
+
 }
 
 void locWmGlDisplay::restoreState(const QByteArray & state)
@@ -142,6 +243,7 @@ void locWmGlDisplay::initializeGL()
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
     glTexImage2D(GL_TEXTURE_2D, 0, 4, tex.width(), tex.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, tex.bits());
+    glDisable(GL_TEXTURE_2D);       // Disable Texture Mapping
 
     // Lighting
     glLightfv(GL_LIGHT1, GL_AMBIENT, LightAmbient);			// Setup The Ambient Light
@@ -152,6 +254,8 @@ void locWmGlDisplay::initializeGL()
     glEnable(GL_LIGHT1);						// Enable Light One
 
     glEnable(GL_LIGHTING);      // Enable Global Lighting
+    glDisable(GL_LIGHTING);      // Enable Global Lighting
+    LoadModels();
 }
 
 void locWmGlDisplay::paintGL()
@@ -168,17 +272,23 @@ void locWmGlDisplay::paintGL()
     glMaterialfv(GL_FRONT_AND_BACK,GL_EMISSION,MatEmission);
     glMaterialf(GL_FRONT_AND_BACK,GL_SHININESS,100.0f);
 
+    GLfloat LightPosition[]= { 0.0f, 10.0f, 0.0f, 1.0f };      // Light Position
+    glLightfv(GL_LIGHT1, GL_POSITION,LightPosition);		// Set Light Position
+
     glTranslatef(viewTranslation[0],viewTranslation[1],viewTranslation[2]); // Move to centre of field position.
     glRotatef(viewOrientation[0],1.0f,0.0f,0.0f); // Rotate about X-Axis
     glRotatef(viewOrientation[1],0.0f,1.0f,0.0f); // Rotate about Y-Axis
     glRotatef(viewOrientation[2],0.0f,0.0f,1.0f); // Rotate about Z-Axis
 
     // Position Lighting
-    GLfloat LightPosition[]= { 0.0f, 0.0f, 300.0f, 1.0f };      // Light Position
-    glLightfv(GL_LIGHT1, GL_POSITION,LightPosition);		// Set Light Position
+    //GLfloat LightPosition[]= { 0.0f, 0.0f, 300.0f, 1.0f };      // Light Position
+    // glLightfv(GL_LIGHT1, GL_POSITION,LightPosition);		// Set Light Position
 
+/*
     drawField();        // Draw the Standard Field Layout.
     drawBall(QColor(255,165,0,255), 0.0f, 0.0f);    // Draw the ball.
+    */
+    drawModel();
     glFlush ();         // Run Queued Commands
     return;
 }
