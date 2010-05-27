@@ -28,6 +28,7 @@
 #include "NUPlatform/NUIO.h"
 #include "NUbot.h"
 #include "SeeThinkThread.h"
+#include "Autoconfig/nubotdataconfig.h"
 
 
 #ifdef USE_VISION
@@ -70,6 +71,7 @@ SeeThinkThread::SeeThinkThread(NUbot* nubot) : ConditionalThread(string("SeeThin
         debug << "SeeThinkThread::SeeThinkThread(" << nubot << ") with priority " << static_cast<int>(m_priority) << endl;
     #endif
     m_nubot = nubot; 
+	locfile.open((DATA_DIR + "locwm.strm").c_str());
 }
 
 SeeThinkThread::~SeeThinkThread()
@@ -77,6 +79,7 @@ SeeThinkThread::~SeeThinkThread()
     #if DEBUG_VERBOSITY > 0
         debug << "SeeThinkThread::~SeeThinkThread()" << endl;
     #endif
+	locfile.close();
 }
 
 /*! @brief The sense->move main loop
@@ -168,6 +171,7 @@ void SeeThinkThread::run()
                         localisationthreadstarttime = NUSystem::getThreadTime();
                 #endif
                 m_nubot->m_localisation->process(m_nubot->SensorData, m_nubot->Objects);
+				if(locfile.is_open()) locfile << (*m_nubot->m_localisation);
 		
                 #if defined (THREAD_SEETHINK_MONITOR_TIME) //END TIMER FOR VISION PROCESS FRAME
                     localisationrealendtime = NUSystem::getRealTime();
