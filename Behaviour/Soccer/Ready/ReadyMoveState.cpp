@@ -58,6 +58,7 @@ void ReadyMoveState::doState()
     
     vector<float> result = m_field_objects->self.CalculateDifferenceFromFieldState(vector<float>(3,0));
     
-    m_jobs->addMotionJob(new WalkJob(0.5*result[0], result[1], result[2]/2.0));
+    if(fabs(0.1*result[0]) < 0.5) m_jobs->addMotionJob(new WalkJob(0.0f, 0.0f, 0.0f));
+    else m_jobs->addMotionJob(new WalkJob(fabs(0.1*result[0]), result[1], result[2]/2.0));
 }
 
