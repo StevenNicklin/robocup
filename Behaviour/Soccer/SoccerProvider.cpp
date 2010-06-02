@@ -103,7 +103,8 @@ BehaviourState* SoccerProvider::nextStateCommons()
             return m_set;
             break;
         case GameInformation::PlayingState:
-            return m_playing;
+//            return m_playing;
+            return m_ready;
             break;
         case GameInformation::FinishedState:
             return m_finished;
