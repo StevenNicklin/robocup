@@ -106,6 +106,7 @@ private:
     bool AlignXposition(legId_t kickingLeg, float speed, float xPos);
     bool LowerLeg(legId_t kickingLeg, float speed);
     bool BalanceCoP(legId_t supportLeg, float targetX = 0.0f, float targetY = 0.0f);
+    bool AlignKickAngle(legId_t kickingLeg, float kickAngle, float speed);
     void BalanceCoPLevelTorso(vector<float>& jointAngles, float CoPx, float CoPy, float targetX = 0.0f, float targetY = 0.0f);
     void BalanceCoPHipAndAnkle(vector<float>& jointAngles, float CoPx, float CoPy, float targetX = 0.0f, float targetY = 0.0f);
     void BalanceCoPHip(vector<float>& jointAngles, float CoPx, float CoPy = 0.0f);
@@ -120,6 +121,7 @@ private:
     float SpeedMultiplier();
     float GainMultiplier();
     double MoveLimbToPositionWithSpeed(NUActionatorsData::bodypart_id_t limbId, vector<float> currentPosition, vector<float> targetPosition, float maxSpeed , float gain, float smoothness = 0.5);
+
 
     float CalculateForwardSwingSpeed(float kickDistance);
     float CalculateSidewardSwingSpeed(float kickDistance);

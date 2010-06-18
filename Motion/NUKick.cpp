@@ -985,6 +985,49 @@ bool NUKick::doPoise(legId_t poiseLeg, float angleChange, float speed)
     return false;
 }
 
+bool NUKick::AlignKickAngle(legId_t kickingLeg, float kickAngle, float speed)
+{
+    bool validData = true;
+    NUSensorsData::foot_id_t s_kickingFoot;
+    NUSensorsData::bodypart_id_t s_kickingLeg;
+    NUActionatorsData::bodypart_id_t a_kickingLeg;
+    NUSensorsData::foot_id_t s_supportFoot;
+    NUSensorsData::bodypart_id_t s_supportLeg;
+    NUActionatorsData::bodypart_id_t a_supportLeg;
+
+    if(poiseLeg == rightLeg)
+    {
+        s_kickingFoot = NUSensorsData::RightFoot;
+        s_supportFoot = NUSensorsData::LeftFoot;
+        s_kickingLeg = NUSensorsData::RightLegJoints;
+        s_supportLeg = NUSensorsData::LeftLegJoints;
+        a_kickingLeg = NUActionatorsData::RightLegJoints;
+        a_supportLeg = NUActionatorsData::LeftLegJoints;
+    }
+    else if(poiseLeg == leftLeg)
+    {
+        s_kickingFoot = NUSensorsData::LeftFoot;
+        s_supportFoot = NUSensorsData::RightFoot;
+        s_kickingLeg = NUSensorsData::LeftLegJoints;
+        s_supportLeg = NUSensorsData::RightLegJoints;
+        a_kickingLeg = NUActionatorsData::LeftLegJoints;
+        a_supportLeg = NUActionatorsData::RightLegJoints;
+    }
+    else return true;
+
+    bool kickContact;
+    validData = validData && m_data->getFootContact(s_kickingFoot, kickContact);
+    if(!validData) return false;
+
+    vector<float>kickLegJoints, supportLegJoints;
+    vector<float>kickLegPositions, supportLegPositions;
+    validData = validData && m_data->getJointTargets(s_kickingLeg,kickLegJoints);
+    validData = validData && m_data->getJointTargets(s_supportFoot,supportLegJoints);
+    validData = validData && m_data->getJointPositions(s_kickingLeg,kickLegPositions);
+    validData = validData && m_data->getJointPositions(s_supportLeg,supportLegPositions);
+    validData = validData && (kickLegJoints.size() >= 6) && (kickLegPositions.size() >= 6);
+}
+
 double NUKick::TimeBetweenFrames()
 {
     return (m_currentTimestamp - m_previousTimestamp);
