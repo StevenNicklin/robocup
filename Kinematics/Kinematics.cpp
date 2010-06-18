@@ -360,6 +360,18 @@ double Kinematics::CalculateRelativeFootHeight(const Matrix& supportFootTransfor
     return result[2][0];
 }
 
+double Kinematics::CalculateRelativeZAngle(const Matrix& supportFootTransformMatrix,const Matrix& theFootTransformMatrix, Effector theFoot)
+{
+    if((theFoot != leftFoot) && (theFoot != rightFoot)) return 0.0;
+    Matrix totalTransform = InverseMatrix(supportFootTransformMatrix) * theFootTransformMatrix;
+    // Use centre of the foot
+    Matrix footCentre(4, 1, false);
+    footCentre[3][0] = 1.0;
+
+    vector<float> angles = OrientationFromTransform(totalTransform);
+    return -angles[2];
+}
+
 float Kinematics::CalculateRadialLegLength(const vector<float>& legJoints)
 {
     float kneeAngle = legJoints[3];
@@ -388,7 +400,7 @@ Vector2<float> Kinematics::TransformPositionToFoot(const Matrix& FootTransformMa
     positionCol[1][0] = position.y;
     positionCol[2][0] = -footInverse[2][3];
     positionCol[3][0] = 1.0f;
-    Matrix result =  footInverse* positionCol;
+    Matrix result =  footInverse * positionCol;
     Vector2<float> returnResult;
     returnResult.x = result[0][0];
     returnResult.y = result[1][0];
