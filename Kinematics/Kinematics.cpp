@@ -369,7 +369,7 @@ double Kinematics::CalculateRelativeZAngle(const Matrix& supportFootTransformMat
     footCentre[3][0] = 1.0;
 
     vector<float> angles = OrientationFromTransform(totalTransform);
-    return -angles[2];
+    return -2*angles[2];
 }
 
 float Kinematics::CalculateRadialLegLength(const vector<float>& legJoints)
