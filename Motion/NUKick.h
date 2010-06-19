@@ -102,6 +102,7 @@ private:
     bool LiftKickingLeg(legId_t kickingLeg, float speed);
     bool SwingLegForward(legId_t kickingLeg, float speed);
     bool SwingLegSideward(legId_t kickingLeg, float speed);
+    bool AlignLegRelativeYposition(legId_t kickingLeg, float speed, float yPos);
     bool AlignYposition(legId_t kickingLeg, float speed, float yPos);
     bool AlignXposition(legId_t kickingLeg, float speed, float xPos);
     bool LowerLeg(legId_t kickingLeg, float speed);
