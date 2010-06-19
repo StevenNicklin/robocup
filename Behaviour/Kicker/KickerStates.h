@@ -137,7 +137,7 @@ public:
 //        targetPos[1] = kickPos[1] + 1000;
 
         // FWD TEST
-                const float kickAngle = 3.14 / 8.0f;
+                const float kickAngle = 0.0f;//3.14 / 8.0f;
 		const float kickDistance = 1000.0f;
         kickPos[0] = 15;
         kickPos[1] = -6;
