@@ -75,7 +75,7 @@ void NUKick::loadKickParameters()
     m_defaultMotorGain = 75.0f;                 // Default to 75% gain.
     m_leftLegInitialPose.resize(6,0.0f);
     m_leftLegInitialPose[3] = 0.5;
-    m_leftLegInitialPose[1] = - m_leftLegInitialPose[3] / 2.0f;
+    m_leftLegInitialPose[1] = - m_leftLegInitialPose[3] / 2.0f - 0.1;
     m_leftLegInitialPose[5] = - m_leftLegInitialPose[3] / 2.0f;
     m_rightLegInitialPose.assign(m_leftLegInitialPose.begin(), m_leftLegInitialPose.end());
 
@@ -1367,6 +1367,7 @@ bool NUKick::AlignLegRelativeYposition(legId_t kickingLeg, float speed, float yP
     const float gain = -0.01;
     bool validData = true;
     NUSensorsData::bodypart_id_t s_kickingLeg;
+    NUSensorsData::bodypart_id_t s_supportLeg;
     NUActionatorsData::bodypart_id_t a_kickingLeg;
     NUActionatorsData::joint_id_t a_kickingHipRoll;
     Matrix kickingLegTransform;
@@ -1375,6 +1376,7 @@ bool NUKick::AlignLegRelativeYposition(legId_t kickingLeg, float speed, float yP
     {
         debug << "Aligning with right leg" << endl;
         s_kickingLeg = NUSensorsData::RightLegJoints;
+        s_supportLeg = NUSensorsData::LeftLegJoints;
         a_kickingLeg = NUActionatorsData::RightLegJoints;
         a_kickingHipRoll = NUActionatorsData::RHipRoll;
         validData = validData && m_data->getRightLegTransform(kickingLegTransform);
@@ -1384,6 +1386,7 @@ bool NUKick::AlignLegRelativeYposition(legId_t kickingLeg, float speed, float yP
     {
         debug << "Aligning with left leg" << endl;
         s_kickingLeg = NUSensorsData::LeftLegJoints;
+        s_supportLeg = NUSensorsData::RightLegJoints;
         a_kickingLeg = NUActionatorsData::LeftLegJoints;
         a_kickingHipRoll = NUActionatorsData::LHipRoll;
         validData = validData && m_data->getLeftLegTransform(kickingLegTransform);
@@ -1392,9 +1395,10 @@ bool NUKick::AlignLegRelativeYposition(legId_t kickingLeg, float speed, float yP
     else return true;
 
     vector<float>kickLegJoints;
-    vector<float>kickLegPositions;
+    vector<float>kickLegPositions, supportLegJoints;
     validData = validData && m_data->getJointTargets(s_kickingLeg,kickLegJoints);
     validData = validData && m_data->getJointPositions(s_kickingLeg,kickLegPositions);
+    validData = validData && m_data->getJointPositions(s_supportLeg, supportLegJoints);
     validData = validData && (kickLegJoints.size() >= 6);
 
     //vector<float> footPosition = Kinematics::PositionFromTransform(kickingLegTransform);
@@ -1410,7 +1414,20 @@ bool NUKick::AlignLegRelativeYposition(legId_t kickingLeg, float speed, float yP
         debug << "Y Position = " << yPos << "foot Relative Position = (" << footRelativePos[0] << "," << footRelativePos[1] << "," << footRelativePos[2] << ")" << endl;
         float deltaTheta = crop(gain*deltaY,-speed,speed);
         float calcHipRollAngle = kickLegJoints[0] + deltaTheta;
-        float newHipRollAngle = crop(calcHipRollAngle,hipJointLimits.min,hipJointLimits.max);
+        float newHipRollAngle;
+        if(kickingLeg == leftLeg)
+        {
+            newHipRollAngle = crop(calcHipRollAngle,supportLegJoints[0],hipJointLimits.max);
+        }
+        else if (kickingLeg == rightLeg)
+        {
+            newHipRollAngle = crop(calcHipRollAngle,hipJointLimits.min,supportLegJoints[0]);
+        }
+        else
+        {
+            newHipRollAngle = crop(calcHipRollAngle,hipJointLimits.min,hipJointLimits.max);
+        }
+        debug << "Support Leg Roll = " << supportLegJoints[0] << " New Kicking Leg Roll = " << newHipRollAngle << endl;
         m_actions->addJointPosition(a_kickingHipRoll,m_data->CurrentTime,newHipRollAngle,0,m_defaultMotorGain);
         jointLimitReached = (newHipRollAngle != calcHipRollAngle);
     }
@@ -1877,7 +1894,7 @@ bool NUKick::chooseLeg()
         debug << "Right Foot Relative: (" << rightFootRelativeBallLocation.x << "," << rightFootRelativeBallLocation.y << ")" << endl;
         debug << "Left Foot Relative: (" << leftFootRelativeBallLocation.x << "," << leftFootRelativeBallLocation.y << ")" << endl;
 
-        const float fwdAngleRange = PI/4.0f;
+        const float fwdAngleRange = PI/8.0f;
         const float sideAngleRange = PI/8.0f;
         // Direction is forwardsish
 
