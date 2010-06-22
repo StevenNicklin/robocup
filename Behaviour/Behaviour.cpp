@@ -24,6 +24,7 @@
 
 #include "MiscBehaviours/SelectBehaviourProvider.h"
 #include "Soccer/SoccerProvider.h"
+#include "PenaltyShootout/PenaltyShootoutProvider.h"
 #include "MiscBehaviours/VisionCalibrationProvider.h"
 #include "ChaseBall/ChaseBallProvider.h"
 #include "WalkOptimisation/WalkOptimisationProvider.h"
@@ -100,6 +101,8 @@ BehaviourProvider* Behaviour::nameToProvider(std::string name)
         return new WalkOptimisationProvider(this);
     else if (name.find("kicker") != string::npos)
         return new KickerProvider(this);
+	else if (name.find("penaltyshootout") != string::npos)
+		return new PenaltyShootoutProvider(this);
     else
         return NULL;
 }
