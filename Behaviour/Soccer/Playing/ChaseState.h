@@ -51,9 +51,12 @@ private:
     void doStateCommons();
     BehaviourState* nextStateCommons();
 protected:
-    GoToBall* m_go_to_ball;
-    FindTarget* m_find_target;
-    Kick* m_kick;
+    friend class GoToBall;
+    BehaviourState* m_go_to_ball;
+    friend class FindTarget;
+    BehaviourState* m_find_target;
+    friend class Kick;
+    BehaviourState* m_kick;
 };
 
 
