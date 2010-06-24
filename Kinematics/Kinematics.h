@@ -102,6 +102,7 @@ public:
     float getFootForwardLength() {return m_footForwardLength;}
     float getFootBackwardLength() {return m_footBackwardLength;}
     float getHipOffsetY(){return m_hipOffsetY;}
+    static double CalculateRelativeZAngle(const Matrix& supportFootTransformMatrix,const Matrix& theFootTransformMatrix, Effector theFoot);
 private:
             
     // Top camera

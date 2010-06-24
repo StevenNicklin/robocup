@@ -394,3 +394,15 @@ Vector2<float> Kinematics::TransformPositionToFoot(const Matrix& FootTransformMa
     returnResult.y = result[1][0];
     return returnResult;
 }
+
+double Kinematics::CalculateRelativeZAngle(const Matrix& supportFootTransformMatrix,const Matrix& theFootTransformMatrix, Effector theFoot)
+{
+    if((theFoot != leftFoot) && (theFoot != rightFoot)) return 0.0;
+    Matrix totalTransform = InverseMatrix(supportFootTransformMatrix) * theFootTransformMatrix;
+    // Use centre of the foot
+    Matrix footCentre(4, 1, false);
+    footCentre[3][0] = 1.0;
+
+    vector<float> angles = OrientationFromTransform(totalTransform);
+    return -2*angles[2];
+}

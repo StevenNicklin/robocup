@@ -633,6 +633,7 @@ void NUSensors::calculateOdometry()
     const float yMultiplier = -1.09;        // 1.48 sd: 4.2cm (0.021 cm/cm). Measured on 12/6/2010 with ALWalkCrab
 
     static float prevHipYaw = 0.0;
+    static float prevzangle = 0.0f;
     static float prevLeftX = 0.0;
     static float prevRightX = 0.0;
     static float prevLeftY = 0.0;
@@ -644,8 +645,7 @@ void NUSensors::calculateOdometry()
     if(odometeryData.size() < 3) odometeryData.resize(3,0.0); // Make sure the data vector is of the correct size.
 
     float hipYawPitch;
-    m_data->getJointPosition(NUSensorsData::LHipYawPitch,hipYawPitch);
-
+    m_data->getJointPosition(NUSensorsData::LHipYawPitch,hipYawPitch);    
     const int arrayWidth = 4;
     const int translationCol = 3;
 
@@ -696,6 +696,23 @@ void NUSensors::calculateOdometry()
         leftFootSupport = false;
         rightFootSupport = true;
     }
+
+    float FeetZAngle = 0.0f;
+    Kinematics::Effector theMobileLeg;
+    Matrix supportFootTransform, mobileFootTransform;
+    if(leftFootSupport)
+    {
+        m_data->getLeftLegTransform(supportFootTransform);
+        m_data->getRightLegTransform(mobileFootTransform);
+        theMobileLeg = Kinematics::rightFoot;
+    }
+    else
+    {
+        m_data->getLeftLegTransform(mobileFootTransform);
+        m_data->getRightLegTransform(supportFootTransform);
+        theMobileLeg = Kinematics::leftFoot;
+    }
+    FeetZAngle = Kinematics::CalculateRelativeZAngle(supportFootTransform,mobileFootTransform,theMobileLeg);
     
     // Calculate movement
     float deltaX;
@@ -706,13 +723,15 @@ void NUSensors::calculateOdometry()
     {
         deltaX = xMultiplier * (leftFootPosition[0] - prevLeftX);
         deltaY = yMultiplier * (leftFootPosition[1] - prevLeftY);
-        deltaTheta = turnMultiplier * (hipYawPitch - prevHipYaw);
+        //deltaTheta = turnMultiplier * (hipYawPitch - prevHipYaw);
+        deltaTheta = turnMultiplier * (FeetZAngle - prevzangle);
     }
     else if(!leftFootSupport && rightFootSupport)
     {
         deltaX = xMultiplier * (rightFootPosition[0] - prevRightX);
         deltaY = yMultiplier * (rightFootPosition[1] - prevRightY);
-        deltaTheta = turnMultiplier * (prevHipYaw - hipYawPitch);
+        //deltaTheta = turnMultiplier * (prevzangle - FeetZAngle);
+        deltaTheta = turnMultiplier * (FeetZAngle - prevzangle);
     }
     
     odometeryData[0] += deltaX;
@@ -723,6 +742,7 @@ void NUSensors::calculateOdometry()
 
     // Save the historical data
     prevHipYaw = hipYawPitch;
+    prevzangle = FeetZAngle;
     prevLeftX = leftFootPosition[0];
     prevRightX = rightFootPosition[0];
     prevLeftY = leftFootPosition[1];
