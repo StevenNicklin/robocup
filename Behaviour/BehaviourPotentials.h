@@ -35,6 +35,15 @@
 #include <string>
 using namespace std;
 
+#include <vector>
+#include <algorithm>
+#include <utility>
+
+bool bearingCompare(const MobileObject& i, const MobileObject& j)
+{
+    return i.measuredBearing() < j.measuredBearing();
+}
+
 class BehaviourPotentials 
 {
 public:
@@ -380,8 +389,62 @@ public:
         float middleBearing = leftGoalBearing + rightGoalBearing / 2.0f;
         return ((leftGoalBearing > 0.0f) && (rightGoalBearing < 0.0f)) || (fabs(middleBearing) < mathGeneral::PI/16.0f);
     }
+
+    static float CalculateBestKickBearing(std::vector<MobileObject> obstacles, FieldObjects* fieldobjects, GameInformation* gameinfo)
+    {
+        float oppGoalBearing = BehaviourPotentials::getBearingToOpponentGoal(fieldobjects,gameinfo);
+        if(obstacles.size() <= 0) return oppGoalBearing;
+        sort(obstacles.begin(),obstacles.end(),bearingCompare);
+
+        const float robotWidth = 100.0f;
+
+        const float headingRange = mathGeneral::deg2rad(360.0f);
+        const float segmentSize = mathGeneral::deg2rad(20.0f);
+
+        const int numSegements = headingRange / segmentSize;
+
+        vector<bool> obstacleInDirection(numSegements, false);
+
+        for (int i = 0; i < obstacles.size(); i++)
+        {
+            MobileObject obstacle = obstacles[i];
+            float bearing = obstacle.measuredBearing();
+            float distance = obstacle.measuredDistance();
+
+            float startAngle = bearing - (0.5*robotWidth) / distance;
+            float endAngle = bearing + (0.5*robotWidth) / distance;
+            for(float a = startAngle; a <= endAngle; a += segmentSize)
+            {
+                unsigned int index = int(ceil((a+0.5*headingRange) / segmentSize));
+                if(index < 0 || index > obstacleInDirection.size()) break;
+                obstacleInDirection[index] = true;
+            }
+        }
+        int goalDirectionIndex = int(ceil((oppGoalBearing+0.5*headingRange) / segmentSize));
+        int leftCount = 0, rightCount = 0;
+        for (int i = goalDirectionIndex; i < obstacleInDirection.size(); i++)
+        {
+            leftCount++;
+            if(i < 0 || i > obstacleInDirection.size()) break;
+            if(!obstacleInDirection[i]) break;
+        }
+        for (int i = goalDirectionIndex; i >= 0; i--)
+        {
+            rightCount++;
+            if(i < 0 || i > obstacleInDirection.size()) break;
+            if(!obstacleInDirection[i]) break;
+        }
+
+        float kickBearing;
+        if(leftCount > rightCount)
+        {
+            kickBearing = (goalDirectionIndex - rightCount) * segmentSize - 0.5*headingRange;
+        }
+        else
+        {
+            kickBearing = (goalDirectionIndex + leftCount) * segmentSize - 0.5*headingRange;
+        }
+        return kickBearing;
+    }
 };
-
-
 #endif
-
