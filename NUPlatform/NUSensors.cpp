@@ -643,7 +643,7 @@ void NUSensors::calculateFootImpact()
     
     m_data->FootImpact->setData(m_data->CurrentTime, impacttimes, true);
 }
-
+/*
 void NUSensors::calculateOdometry()
 {
 #if DEBUG_NUSENSORS_VERBOSITY > 4
@@ -749,6 +749,122 @@ void NUSensors::calculateOdometry()
     prevRightX = rightFootPosition[0];
     prevLeftY = leftFootPosition[1];
     prevRightY = rightFootPosition[1];
+}
+*/
+
+void NUSensors::calculateOdometry()
+{
+#if DEBUG_NUSENSORS_VERBOSITY > 4
+    debug << "NUSensors::calculateOdometry()" << endl;
+#endif
+
+    // Enum for leg selection.
+    enum{none, left, right};
+
+    const float turnMultiplier = 1.0;   // Turn Gripping factor
+    const float xMultiplier = 1.0;      // X Gripping factor
+    const float yMultiplier = 1.0;      // Y Gripping factor
+
+    // Static variables for historical data.
+    static float lprevTheta = 0.0;
+    static float lprevX = 0.0;
+    static float lprevY = 0.0;
+    static float rprevTheta = 0.0;
+    static float rprevX = 0.0;
+    static float rprevY = 0.0;
+
+    int currentSupportLeg = none;
+    float x, y, theta;
+    float prevTheta;
+    float prevX;
+    float prevY;
+
+    float lTheta;
+    float lX;
+    float lY;
+    float rTheta;
+    float rX;
+    float rY;
+
+    vector<float> odometeryData = m_data->Odometry->Data;
+    if(odometeryData.size() < 3) odometeryData.resize(3,0.0); // Make sure the data vector is of the correct size.
+
+    float leftForce, rightForce;
+    m_data->getFootForce(NUSensorsData::LeftFoot,leftForce);
+    m_data->getFootForce(NUSensorsData::RightFoot,rightForce);
+
+    if(leftForce > rightForce)
+        currentSupportLeg = left;
+    else
+        currentSupportLeg = right;
+
+    Matrix transform, leftTransform, rightTransform;
+    bool validFootTransform = true;
+    validFootTransform = validFootTransform && m_data->getLeftLegTransform(leftTransform);
+    validFootTransform = validFootTransform && m_data->getRightLegTransform(rightTransform);
+
+    if(!validFootTransform)
+        return; // If the leg transforms cannot be obtained, then no calculations can be done.
+
+    std::vector<float> position;
+    std::vector<float> orientation;
+
+    // Get values for left leg
+    transform = leftTransform;
+    position = m_kinematicModel->PositionFromTransform(transform);
+    orientation = m_kinematicModel->OrientationFromTransform(transform);
+    lTheta = orientation[2];
+    lX = position[0];
+    lY = position[1];
+
+    // Get values for right leg
+    transform = rightTransform;
+    position = m_kinematicModel->PositionFromTransform(transform);
+    orientation = m_kinematicModel->OrientationFromTransform(transform);
+    rTheta = orientation[2];
+    rX = position[0];
+    rY = position[1];
+
+    // Select values to use for calculation based on the support leg.
+    if(currentSupportLeg == left)
+    {        
+        x = lX;
+        y = lY;
+        theta = lTheta;
+        prevTheta = lprevTheta;
+        prevX = lprevX;
+        prevY = lprevY;
+    }
+    else if (currentSupportLeg == right)
+    {
+        x = rX;
+        y = rY;
+        theta = rTheta;
+        prevTheta = rprevTheta;
+        prevX = rprevX;
+        prevY = rprevY;
+    }
+
+    if(currentSupportLeg != none)
+    {
+        // Calculate differences in the position of the support leg.
+        float deltaX = xMultiplier * (x - prevX);
+        float deltaY = yMultiplier * (y - prevY);
+        float deltaTheta = turnMultiplier * (theta - prevTheta);
+
+        odometeryData[0] += deltaX;
+        odometeryData[1] += deltaY;
+        odometeryData[2] += deltaTheta;
+        m_data->Odometry->setData(m_data->CurrentTime, odometeryData, true);
+    }
+
+    lprevTheta = lTheta;
+    lprevX = lX;
+    lprevY = lY;
+    rprevTheta = rTheta;
+    rprevX = rX;
+    rprevY = rY;
+    return;
 }
 
 void NUSensors::calculateKinematics()
