@@ -188,10 +188,11 @@ void TcpPort::sendData(network_data_t netdata)
             int localnumBytes = write(m_clientSockfd, netdata.data, netdata.size);
         #endif
         if(localnumBytes < 0)
+        {
         #if DEBUG_NUSYSTEM_VERBOSITY > 4
             debug << "TcpPort::sendData(). Sending Error "<< endl;
         #endif
-        
+        }
     }
     pthread_mutex_unlock(&m_socket_mutex);
     return;
