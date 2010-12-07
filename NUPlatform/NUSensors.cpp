@@ -777,10 +777,6 @@ void NUSensors::calculateOdometry()
     static float totalX = 0.0;
     static float totalY = 0.0;
 
-    static float trackedX = 0.0f;
-    static float trackedY = 0.0f;
-    static float trackedTheta = 0.0f;
-
     int currentSupportLeg = none;
     float x, y, theta;
     float prevTheta;
@@ -881,11 +877,6 @@ void NUSensors::calculateOdometry()
         debug << "Odometry Total: (" << totalX << "," << totalY << "," << totalTheta << ")" << endl;
 #endif        
         m_data->Odometry->setData(m_data->CurrentTime, odometeryData, true);
-
-        trackedX += x * cos(theta) + y * sin(theta);
-        trackedY += x * sin(theta) + y * cos(theta);
-        trackedTheta += theta;
-        debug << "Tracked Odometry (" << trackedX << "," << trackedY << "," << trackedTheta << ")" << endl;
     }
 
     lprevTheta = lTheta;
