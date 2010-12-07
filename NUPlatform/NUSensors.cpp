@@ -772,6 +772,14 @@ void NUSensors::calculateOdometry()
     static float rprevTheta = 0.0;
     static float rprevX = 0.0;
     static float rprevY = 0.0;
+    
+    static float totalTheta = 0.0;
+    static float totalX = 0.0;
+    static float totalY = 0.0;
+
+    static float trackedX = 0.0f;
+    static float trackedY = 0.0f;
+    static float trackedTheta = 0.0f;
 
     int currentSupportLeg = none;
     float x, y, theta;
@@ -848,14 +856,36 @@ void NUSensors::calculateOdometry()
     if(currentSupportLeg != none)
     {
         // Calculate differences in the position of the support leg.
-        float deltaX = xMultiplier * (x - prevX);
-        float deltaY = yMultiplier * (y - prevY);
+        float deltaX = xMultiplier * (prevX - x);
+        float deltaY = yMultiplier * (prevY - y);
         float deltaTheta = turnMultiplier * (theta - prevTheta);
 
         odometeryData[0] += deltaX;
         odometeryData[1] += deltaY;
         odometeryData[2] += deltaTheta;
+        
+        totalX += deltaX;
+        totalY += deltaY;
+        totalTheta += deltaTheta;
+        
+#if DEBUG_NUSENSORS_VERBOSITY > 4        
+        debug << "Current Foot: ";
+        if(currentSupportLeg == left)
+            debug << "Left";
+        else if(currentSupportLeg == right)
+            debug << "Right";
+        else
+            debug << "None";
+        debug << " (" << x << "," << y << "," << theta << ")" << endl;
+        debug << "Odometry Update: (" << deltaX << "," << deltaY << "," << deltaTheta << ")" << endl;
+        debug << "Odometry Total: (" << totalX << "," << totalY << "," << totalTheta << ")" << endl;
+#endif        
         m_data->Odometry->setData(m_data->CurrentTime, odometeryData, true);
+
+        trackedX += x * cos(theta) + y * sin(theta);
+        trackedY += x * sin(theta) + y * cos(theta);
+        trackedTheta += theta;
+        debug << "Tracked Odometry (" << trackedX << "," << trackedY << "," << trackedTheta << ")" << endl;
     }
 
     lprevTheta = lTheta;
