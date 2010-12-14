@@ -1,8 +1,8 @@
 #ifndef UKF_H
 #define UKF_H
 
-#include "Matrix.h"
-
+#include "Tools/Math/Eigen/Core"
+template<class NStates>
 class UKF
 {
 public:
@@ -24,9 +24,9 @@ public:
     bool measurementUpdate(const Matrix& measurement, const Matrix& measurementNoise, const Matrix& predictedMeasurementSigmas, const Matrix& stateEstimateSigmas);
 
 protected:
-   unsigned int m_numStates;
-   Matrix m_mean;
-   Matrix m_covariance;
+
+   Matrix<double, NStates, 1> m_mean;
+   Matrix<double, NStates, NStates> m_covariance;
    Matrix m_sigmaWeights;
    Matrix m_sqrtSigmaWeights;
    float m_kappa;
