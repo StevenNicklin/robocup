@@ -164,7 +164,7 @@ void NUSensors::calculateOrientation()
             Matrix supportLegTransform = Matrix4x4fromVector(supportLegTransformFlat);
             if(validKinematics)
                 orientation = Kinematics::OrientationFromTransform(supportLegTransform);
-            m_orientationFilter->MeasurementUpdate(acceleration, validKinematics, orientation);
+            //m_orientationFilter->MeasurementUpdate(acceleration, validKinematics, orientation);
         }
 
         // Set orientation

@@ -1,6 +1,6 @@
 #include "UKF.h"
 #include "debug.h"
-
+/*
 using namespace std;
 
 
@@ -47,7 +47,6 @@ Matrix UKF::CalculateCovarianceFromSigmas(const Matrix& sigmaPoints, const Matri
     }
     return covariance;
 }
-
 void UKF::CalculateSigmaWeights(float kappa)
 {
     unsigned int numPoints = 2*m_numStates + 1;
@@ -163,3 +162,4 @@ bool UKF::measurementUpdate(const Matrix& measurement, const Matrix& measurement
     //                          K*predictedMeasurement*m_sigmaWeights,K*measurementNoise));
     return true;
 }
+*/

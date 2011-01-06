@@ -2,8 +2,8 @@
 #define ORIENTATIONUKF_H
 
 #include "Tools/Math/UKF.h"
-
-class OrientationUKF : public UKF
+#include <vector>
+class OrientationUKF : public UKF<4>
 {
 public:
     OrientationUKF();
@@ -22,8 +22,8 @@ public:
 
 private:
     double m_timeOfLastUpdate;
-    Matrix m_updateSigmaPoints;
-    Matrix m_processNoise;
+    UKF<4>::SigmaMatrix m_updateSigmaPoints;
+    UKF<4>::ProcessMatrix m_processNoise;
     bool m_initialised;
 };
 
