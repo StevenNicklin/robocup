@@ -7,7 +7,7 @@
 
 class Localisation;
 class NUSensorsData;
-class NUimage;
+class NUImage;
 class LocWmFrame;
 
 class LogFileFormatReader : public QObject
@@ -34,10 +34,14 @@ public:
     virtual bool isLastFrameAvailable(){return false;};
     virtual bool isSetFrameAvailable(){return false;};
 
+    virtual const Localisation* GetLocalisationData(){return NULL;};
+    virtual const NUImage* GetImageData(){return NULL;};
+    virtual const NUSensorsData* GetSensorData(){return NULL;};
+
 signals:
     void LocalisationDataChanged(const Localisation*);
     void LocalisationFrameChanged(const LocWmFrame*);
-    void rawImageChanged(const NUimage*);
+    void rawImageChanged(const NUImage*);
     void sensorDataChanged(const float*,const float*,const float*);
     void sensorDataChanged(NUSensorsData*);
     void frameChanged(int,int);

@@ -23,8 +23,8 @@
 #include "debug.h"
 #include "debugverbositynetwork.h"
 #include "SSLVisionPacket.h"
-#include "NUPlatform/NUSensors/NUSensorsData.h"
-#include "Behaviour/TeamInformation.h"
+#include "Infrastructure/NUSensorsData/NUSensorsData.h"
+#include "Infrastructure/TeamInformation/TeamInformation.h"
 
 #include "nubotdataconfig.h"
 #include "Motion/Tools/MotionFileTools.h"
@@ -47,6 +47,7 @@ SSLVisionPort::SSLVisionPort(NUSensorsData *nubotsensors, TeamInformation* teami
     else
         m_ssl_id = m_team_info->getPlayerNumber();
     idfile.close();
+	storage.open("/var/volatile/storage.log");	
 }
 
 /*! @brief Closes the job port
@@ -86,17 +87,21 @@ void SSLVisionPort::writePacketToSensors(SSLVisionPacket* packet, NUSensorsData*
                 std::vector<float> gpsData(2,0.0f);
                 gpsData[0] = packet->robots[i].location.x;
                 gpsData[1] = packet->robots[i].location.y;
-                sensors->setGPSValues(currTime,gpsData,false);
+                sensors->set(NUSensorsData::Gps, currTime, gpsData);
 
                 // Orientation Data
-                std::vector<float> compassData(1,0.0f);
+                float compassData;
                 float headyaw;
-                sensors->getJointPosition(NUSensorsData::HeadYaw, headyaw);
-                compassData[0] = mathGeneral::normaliseAngle(packet->robots[i].heading - headyaw);           // as the marker is attached to the head, subtract the head yaw position
-                sensors->setCompassValues(currTime, compassData, false);
+                sensors->getPosition(NUSensorsData::HeadYaw, headyaw);
+                compassData = mathGeneral::normaliseAngle(packet->robots[i].heading - headyaw);           // as the marker is attached to the head, subtract the head yaw position
+                sensors->set(NUSensorsData::Compass, currTime, compassData);
+				
+				// Record data into file
+				storage<<"\n"<<gpsData[0]<<", "<<gpsData[1]<<", "<<compassData<<", "<<headyaw<<", "<<currTime;
+				
                 #if DEBUG_NETWORK_VERBOSITY > 0
                     debug << "SSLVisionPort. Position data received - gps: (" << gpsData[0] << "," << gpsData[1];
-                    debug << ") Heading: " << compassData[0] << std::endl;
+                    debug << ") Heading: " << compassData << std::endl;
                 #endif
             }
             else

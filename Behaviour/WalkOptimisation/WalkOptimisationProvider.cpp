@@ -29,16 +29,24 @@
 #include "Tools/Optimisation/PSOOptimiser.h"
 #include "Motion/Tools/MotionFileTools.h"
 
-#include "Behaviour/Jobs/JobList.h"
-#include "Behaviour/Jobs/MotionJobs/WalkParametersJob.h"
-#include "Behaviour/Jobs/MotionJobs/HeadJob.h"
+#include "Infrastructure/Jobs/JobList.h"
+#include "Infrastructure/NUSensorsData/NUSensorsData.h"
+#include "Infrastructure/NUActionatorsData/NUActionatorsData.h"
+#include "Infrastructure/FieldObjects/FieldObjects.h"
+#include "NUPlatform/NUPlatform.h"
 
-#include "NUPlatform/NUSystem.h"
+#include "Infrastructure/Jobs/MotionJobs/HeadJob.h"
+#include "Infrastructure/Jobs/MotionJobs/HeadPanJob.h"
+#include "Infrastructure/Jobs/MotionJobs/HeadNodJob.h"
+#include "Infrastructure/Jobs/MotionJobs/WalkJob.h"
+#include "Infrastructure/Jobs/MotionJobs/WalkParametersJob.h"
 
 #include "debug.h"
 #include "debugverbositybehaviour.h"
 #include "nubotdataconfig.h"
 #include "targetconfig.h"
+
+#include <boost/random.hpp>
 
 WalkOptimisationProvider::WalkOptimisationProvider(Behaviour* manager) : BehaviourFSMProvider(manager)
 {
@@ -58,13 +66,13 @@ WalkOptimisationProvider::WalkOptimisationProvider(Behaviour* manager) : Behavio
         id_file.close();
     } 
     
-    m_parameters.load("ALWalkAldebaran");
+    m_parameters.load("NBWalkStart");
     vector<Parameter> parameters = m_parameters.getAsParameters();
     //parameters.resize(parameters.size() - 6);           // remove the stiffnesses from the parameter set!
     //m_optimiser = new EHCLSOptimiser(id.str() + "EHCLS", parameters);
-    m_optimiser = new PGRLOptimiser(id.str() + "PGRL", parameters);    
+    //m_optimiser = new PGRLOptimiser(id.str() + "PGRL", parameters);    
     //m_optimiser = new PSOOptimiser(id.str() + "PSO", parameters);
-    //m_optimiser = NULL;    
+    m_optimiser = NULL;    
     m_log.open((DATA_DIR + "/Optimisation/" + id.str() + "Log.log").c_str(), fstream::out | fstream::app);
     
     if (m_optimiser)
@@ -118,15 +126,15 @@ BehaviourState* WalkOptimisationProvider::nextStateCommons()
         m_game_info->doManualStateChange();
     
     #ifndef TARGET_IS_NAOWEBOTS    
-        if (m_state == m_paused and nusystem->getTime() > 5000)
+        if (m_state == m_paused and Platform->getTime() > 5000)
             return m_generate;
         else
             return m_state;
     #else
-        if (nusystem->getTime() > 20*60*60*1e3)
+        if (Platform->getTime() > 20*60*60*1e3)
             exit(1);
         
-        if (m_state == m_paused and nusystem->getTime() > 1000)
+        if (m_state == m_paused and Platform->getTime() > 1000)
             return m_generate;
         else
             return m_state;
@@ -209,6 +217,10 @@ float WalkOptimisationProvider::calculateFitness()
         cost = 100*m_energy/(9.81*4.6*calculatePathDistance()); 	// J/Nm
         speed = 1000*calculatePathDistance()/m_duration;			// cm/s
     }
+    #ifdef TARGET_IS_NAOWEBOTS
+        speed *= normalDistribution(1, 0.035);
+        cost *= normalDistribution(1, 0.035);
+    #endif
     
     //fitness = speed;                      // speed--based fitness
     fitness = 180/(4+cost);                 // cost--based fitness
@@ -255,6 +267,20 @@ float WalkOptimisationProvider::stoppingDistance()
     float xd = pow(1.1*speeds[0],2)/(2*accels[0]);          // s = u^2/2a with a 10% margin for error
     float yd = pow(1.1*speeds[1],2)/(2*accels[1]);
     return sqrt(xd*xd + yd*yd);              
+}
+
+/*! @brief Returns a normal random variable from the normal distribution with mean and sigma
+ */
+float WalkOptimisationProvider::normalDistribution(float mean, float sigma)
+{
+    static unsigned int seed = 1e6*Platform->getRealTime()*Platform->getRealTime()*Platform->getRealTime();          // I am hoping that at least one of the three calls is different for each process
+    static boost::mt19937 generator(seed);                       // you need to seed it here with an unsigned int!
+    static boost::normal_distribution<float> distribution(0,1);
+    static boost::variate_generator<boost::mt19937, boost::normal_distribution<float> > standardnorm(generator, distribution);
     
+    float z = standardnorm();       // take a random variable from the standard normal distribution
+    float x = mean + z*sigma;       // then scale it to belong to the specified normal distribution
+    
+    return x;
 }
 

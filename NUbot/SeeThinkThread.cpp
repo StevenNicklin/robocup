@@ -22,23 +22,26 @@
 
 
 #include "NUPlatform/NUPlatform.h"
-#include "NUPlatform/NUSensors/NUSensorsData.h"
-#include "NUPlatform/NUActionators/NUActionatorsData.h"
+#include "Infrastructure/NUBlackboard.h"
+#include "Infrastructure/NUSensorsData/NUSensorsData.h"
+#include "Infrastructure/NUActionatorsData/NUActionatorsData.h"
 #include "NUPlatform/NUActionators/NUSounds.h"
 #include "NUPlatform/NUIO.h"
 #include "NUbot.h"
 #include "SeeThinkThread.h"
+#include "Localisation/LocWmFrame.h"
+#include "nubotdataconfig.h"
 
 
 #ifdef USE_VISION
-    #include "Vision/FieldObjects/FieldObjects.h"
-    #include "Tools/Image/NUimage.h"
+    #include "Infrastructure/FieldObjects/FieldObjects.h"
+    #include "Infrastructure/NUImage/NUImage.h"
     #include "Vision/Vision.h"
 #endif
 
 #ifdef USE_BEHAVIOUR
     #include "Behaviour/Behaviour.h"
-    #include "Behaviour/Jobs.h"
+    #include "Infrastructure/Jobs/Jobs.h"
 #endif
 
 #ifdef USE_LOCALISATION
@@ -73,7 +76,14 @@ SeeThinkThread::SeeThinkThread(NUbot* nubot) : ConditionalThread(string("SeeThin
     #if DEBUG_VERBOSITY > 0
         debug << "SeeThinkThread::SeeThinkThread(" << nubot << ") with priority " << static_cast<int>(m_priority) << endl;
     #endif
-    m_nubot = nubot; 
+    m_nubot = nubot;
+
+
+    m_locwmfile.open((string(DATA_DIR) + string("locfrm.strm")).c_str());
+    debug << "Opening file: " << (string(DATA_DIR) + string("locfrm.strm")).c_str() << " ... ";
+    if(m_locwmfile.is_open()) debug << "Success.";
+    else debug << "Failed.";
+    debug << std::endl;
 }
 
 SeeThinkThread::~SeeThinkThread()
@@ -82,6 +92,7 @@ SeeThinkThread::~SeeThinkThread()
         debug << "SeeThinkThread::~SeeThinkThread()" << endl;
     #endif
     stop();
+    m_locwmfile.close();
 }
 
 /*! @brief The sense->move main loop
@@ -110,9 +121,8 @@ void SeeThinkThread::run()
             #if defined(TARGET_IS_NAOWEBOTS) or (not defined(USE_VISION))
                 waitForCondition();
             #endif
-            
             #ifdef USE_VISION
-                m_nubot->Image = m_nubot->m_platform->camera->grabNewImage();
+                m_nubot->m_platform->updateImage();
                 *(m_nubot->m_io) << m_nubot;  //<! Raw IMAGE STREAMING (TCP)
             #endif
             
@@ -121,38 +131,39 @@ void SeeThinkThread::run()
             #endif
             // -----------------------------------------------------------------------------------------------------------------------------------------------------------------
             #ifdef USE_VISION
-                m_nubot->m_vision->ProcessFrame(m_nubot->Image, m_nubot->SensorData, m_nubot->Actions, m_nubot->Objects);
+                m_nubot->m_vision->ProcessFrame(Blackboard->Image, Blackboard->Sensors, Blackboard->Actions, Blackboard->Objects);
                 #ifdef THREAD_SEETHINK_PROFILE
                     prof.split("vision");
                 #endif
             #endif
 
             #ifdef USE_LOCALISATION
-                m_nubot->m_localisation->process(m_nubot->SensorData, m_nubot->Objects, m_nubot->GameInfo, m_nubot->TeamInfo);
+                m_nubot->m_localisation->process(Blackboard->Sensors, Blackboard->Objects, Blackboard->GameInfo, Blackboard->TeamInfo);
                 #ifdef THREAD_SEETHINK_PROFILE
                     prof.split("localisation");
                 #endif
             #endif
             
             #if defined(USE_BEHAVIOUR)
-                m_nubot->m_behaviour->process(m_nubot->Jobs, m_nubot->SensorData, m_nubot->Actions, m_nubot->Objects, m_nubot->GameInfo, m_nubot->TeamInfo);
+                m_nubot->m_behaviour->process(Blackboard->Jobs, Blackboard->Sensors, Blackboard->Actions, Blackboard->Objects, Blackboard->GameInfo, Blackboard->TeamInfo);
                 #ifdef THREAD_SEETHINK_PROFILE
                     prof.split("behaviour");
                 #endif
             #endif
             
             #if DEBUG_VERBOSITY > 0
-                m_nubot->Jobs->summaryTo(debug);
+                Blackboard->Jobs->summaryTo(debug);
             #endif
             
             #ifdef USE_VISION
-                m_nubot->m_vision->process(m_nubot->Jobs, m_nubot->m_platform->camera,m_nubot->m_io) ; //<! Networking for Vision
+            m_nubot->m_vision->process(Blackboard->Jobs) ; //<! Networking for Vision
+            m_nubot->m_platform->process(Blackboard->Jobs, m_nubot->m_io); //<! Networking for Platform
                 #ifdef THREAD_SEETHINK_PROFILE
                     prof.split("vision_jobs");
                 #endif
             #endif
             #ifdef USE_MOTION
-                m_nubot->m_motion->process(m_nubot->Jobs);
+                m_nubot->m_motion->process(Blackboard->Jobs);
                 #ifdef THREAD_SEETHINK_PROFILE
                     prof.split("motion_jobs");
                 #endif

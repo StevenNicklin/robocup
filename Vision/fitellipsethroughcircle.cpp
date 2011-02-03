@@ -6,11 +6,14 @@ class Vision;
 #include "../Tools/Math/Vector2.h"
 #include "CircleFitting.h"
 #include "Tools/Math/General.h"
-#include "NUPlatform/NUSensors/NUSensorsData.h"
+#include "Infrastructure/NUSensorsData/NUSensorsData.h"
 #include "Kinematics/Kinematics.h"
 #include "CircleFitting.h"
 #include "Vision.h"
-//#include <QDebug>
+
+#if TARGET_OS_IS_WINDOWS
+#include <QDebug>
+#endif
 FitEllipseThroughCircle::FitEllipseThroughCircle()
 {
     cx = 0;
@@ -52,7 +55,12 @@ bool FitEllipseThroughCircle::Fit_Ellipse_Through_Circle(std::vector<LinePoint*>
     r1 = circ.radius;
     float reldistance = sqrt(relativeCentrePoint.x * relativeCentrePoint.x  + relativeCentrePoint.y *relativeCentrePoint.y);
     float bearing = atan2(relativeCentrePoint.y,relativeCentrePoint.x);
-    //qDebug() << "CenterCircle through Circle: Distance: " << reldistance << "Bearing:" <<bearing << "Radius: " <<r1;
+    #if TARGET_OS_IS_WINDOWS
+        qDebug() << "\t\tELLIPISEthroughCircle::Calculated Centre Circle: " << reldistance << "cm , "<<bearing <<" rad. Radius: " << r1 << "."<<endl;
+    #endif
+    #if DEBUG_VISION_VERBOSITY > 6
+        debug << "\t\tELLIPISEthroughCircle::Calculated Centre Circle: " << reldistance << "cm , "<<bearing <<" rad. Radius: " << r1 << "."<<endl;
+    #endif
     return true;
 }
 Vector3<float> FitEllipseThroughCircle::DistanceToPoint(LinePoint* point, Vision* vision)
@@ -66,10 +74,11 @@ Vector3<float> FitEllipseThroughCircle::DistanceToPoint(LinePoint* point, Vision
     float bearing = vision->CalculateBearing(point->x);
     float elevation = vision->CalculateElevation(point->y);
 
-    Matrix camera2groundTransform;
-    bool isOK = vision->getSensorsData()->getCameraToGroundTransform(camera2groundTransform);
+    vector<float> ctgvector;
+    bool isOK = vision->getSensorsData()->get(NUSensorsData::CameraToGroundTransform, ctgvector);
     if(isOK == true)
     {
+        Matrix camera2groundTransform = Matrix4x4fromVector(ctgvector);
         Vector3<float> result;
         result = Kinematics::DistanceToPoint(camera2groundTransform, bearing, elevation);
         relativePoint.x = result[0]; //DISTANCE
@@ -77,7 +86,7 @@ Vector3<float> FitEllipseThroughCircle::DistanceToPoint(LinePoint* point, Vision
         relativePoint.z = result[2]; //ELEVATION
 
         #if DEBUG_VISION_VERBOSITY > 6
-        debug << "\t\tELLIPISE::Calculated Distance to Point: " << relativePoint.x <<endl;
+        debug << "\t\tELLIPISEthroughCircle::Calculated Distance to Point: " << relativePoint.x <<endl;
         #endif
     }
     return relativePoint;

@@ -1,4 +1,4 @@
-#include "locwmStreamWidget.h"
+#include "locwmstreamwidget.h"
 #include <QLabel>
 #include <QLineEdit>
 #include <QHBoxLayout>
@@ -9,7 +9,7 @@
 #include <QHostAddress>
 #include <sstream>
 #include "Localisation/Localisation.h"
-#include "Vision/FieldObjects/FieldObjects.h"
+#include "Infrastructure/FieldObjects/FieldObjects.h"
 
 locwmStreamWidget::locwmStreamWidget(QMdiArea* parentMdiWidget, QWidget *parent): QWidget(parent)
 {

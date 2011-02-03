@@ -14,6 +14,15 @@
 #include <QTabWidget>
 #include <QImage>
 #include <typeinfo>
+
+#include "NUPlatform/NUPlatform.h"
+#include "Infrastructure/NUBlackboard.h"
+#include "Infrastructure/NUSensorsData/NUSensorsData.h"
+#include "Infrastructure/NUActionatorsData/NUActionatorsData.h"
+#include "Infrastructure/FieldObjects/FieldObjects.h"
+#include "Infrastructure/Jobs/JobList.h"
+#include "Infrastructure/GameInformation/GameInformation.h"
+#include "Infrastructure/TeamInformation/TeamInformation.h"
 #include "NUviewIO/NUviewIO.h"
 
 #include "frameInformationWidget.h"
@@ -30,6 +39,16 @@ MainWindow::MainWindow(QWidget *parent)
     qDebug() << "NUview is starting in: MainWindow.cpp";
     debug.open("debug.log");
     errorlog.open("error.log");
+
+    m_platform = new NUPlatform();                      // you could make the arguement that NUView should have its own platform, for now we just use a 'blank' one
+    m_blackboard = new NUBlackboard();
+    m_blackboard->add(new NUSensorsData());
+    m_blackboard->add(new NUActionatorsData());
+    m_blackboard->add(new FieldObjects());
+    m_blackboard->add(new JobList());
+    m_blackboard->add(new GameInformation(0, 0));
+    m_blackboard->add(new TeamInformation(0, 0));
+    
     m_nuview_io = new NUviewIO();
 
     // create mdi workspace
@@ -137,6 +156,8 @@ MainWindow::~MainWindow()
     delete doBonjourTestAction;
     
     delete m_nuview_io;
+    delete m_blackboard;
+    delete m_platform;
     return;
 }
 
@@ -236,6 +257,11 @@ void MainWindow::createActions()
     newLocWMDisplayAction->setStatusTip(tr("Create a new Localisation and World Model display window."));
     connect(newLocWMDisplayAction, SIGNAL(triggered()), this, SLOT(createLocWmGlDisplay()));
 
+    // New LUT Display Window
+    newLUTDisplayAction = new QAction(tr("&New display"), this);
+    newLUTDisplayAction->setStatusTip(tr("Create a new Look up table display window."));
+    connect(newLUTDisplayAction, SIGNAL(triggered()), this, SLOT(createLUTGlDisplay()));
+
     doBonjourTestAction = new QAction(tr("&Bonjour Test..."), this);
     doBonjourTestAction->setStatusTip(tr("Test something."));
     connect(doBonjourTestAction, SIGNAL(triggered()), this, SLOT(BonjourTest()));
@@ -275,6 +301,9 @@ void MainWindow::createMenus()
 
     localisationWindowMenu = windowMenu->addMenu(tr("&Localisation"));
     localisationWindowMenu->addAction(newLocWMDisplayAction);
+
+    LUTWindowMenu = windowMenu->addMenu(tr("&Look Up Table"));
+    LUTWindowMenu->addAction(newLUTDisplayAction);
 
     networkWindowMenu = windowMenu->addMenu(tr("&Network"));
     windowMenu->addSeparator();
@@ -321,24 +350,24 @@ void MainWindow::createConnections()
     connect(&LogReader,SIGNAL(sensorDataChanged(NUSensorsData*)),&virtualRobot, SLOT(setSensorData(NUSensorsData*)));
     connect(&LogReader,SIGNAL(frameChanged(int,int)),this, SLOT(imageFrameChanged(int,int)));
 
-    connect(&LogReader,SIGNAL(rawImageChanged(const NUimage*)),&glManager, SLOT(setRawImage(const NUimage*)));
-    connect(&LogReader,SIGNAL(rawImageChanged(const NUimage*)), frameInfo, SLOT(setRawImage(const NUimage*)));
+    connect(&LogReader,SIGNAL(rawImageChanged(const NUImage*)),&glManager, SLOT(setRawImage(const NUImage*)));
+    connect(&LogReader,SIGNAL(rawImageChanged(const NUImage*)), frameInfo, SLOT(setRawImage(const NUImage*)));
 
     connect(&LogReader,SIGNAL(fileOpened(QString)),this, SLOT(filenameChanged(QString)));
     connect(&LogReader,SIGNAL(fileOpened(QString)),frameInfo, SLOT(setFrameSource(QString)));
     connect(&LogReader,SIGNAL(fileClosed()),this, SLOT(fileClosed()));
 
     connect(&LogReader,SIGNAL(cameraChanged(int)),&virtualRobot, SLOT(setCamera(int)));
-    connect(&LogReader,SIGNAL(rawImageChanged(const NUimage*)),&virtualRobot, SLOT(setRawImage(const NUimage*)));
+    connect(&LogReader,SIGNAL(rawImageChanged(const NUImage*)),&virtualRobot, SLOT(setRawImage(const NUImage*)));
     connect(&LogReader,SIGNAL(sensorDataChanged(const float*, const float*, const float*)),&virtualRobot, SLOT(setSensorData(const float*, const float*, const float*)));
     connect(&LogReader,SIGNAL(frameChanged(int,int)),&virtualRobot, SLOT(processVisionFrame()));
 
-    connect(&LogReader,SIGNAL(rawImageChanged(const NUimage*)), this, SLOT(updateSelection()));
+    connect(&LogReader,SIGNAL(rawImageChanged(const NUImage*)), this, SLOT(updateSelection()));
 
-    connect(VisionStreamer,SIGNAL(rawImageChanged(const NUimage*)),&glManager, SLOT(setRawImage(const NUimage*)));
-    connect(VisionStreamer,SIGNAL(rawImageChanged(const NUimage*)), this, SLOT(updateSelection()));
-    connect(VisionStreamer,SIGNAL(rawImageChanged(const NUimage*)),&virtualRobot, SLOT(setRawImage(const NUimage*)));
-    connect(VisionStreamer,SIGNAL(rawImageChanged(const NUimage*)),&virtualRobot, SLOT(processVisionFrame()));
+    connect(VisionStreamer,SIGNAL(rawImageChanged(const NUImage*)),&glManager, SLOT(setRawImage(const NUImage*)));
+    connect(VisionStreamer,SIGNAL(rawImageChanged(const NUImage*)), this, SLOT(updateSelection()));
+    connect(VisionStreamer,SIGNAL(rawImageChanged(const NUImage*)),&virtualRobot, SLOT(setRawImage(const NUImage*)));
+    connect(VisionStreamer,SIGNAL(rawImageChanged(const NUImage*)),&virtualRobot, SLOT(processVisionFrame()));
     connect(VisionStreamer,SIGNAL(sensorsDataChanged(NUSensorsData*)),&virtualRobot, SLOT(setSensorData(NUSensorsData*)));
     connect(VisionStreamer,SIGNAL(sensorsDataChanged(NUSensorsData*)),sensorDisplay, SLOT(SetSensorData(NUSensorsData*)));
     // Setup navigation control enabling/disabling
@@ -349,7 +378,7 @@ void MainWindow::createConnections()
     connect(&LogReader,SIGNAL(setFrameAvailable(bool)),selectFrameAction, SLOT(setEnabled(bool)));
 
     // Connect the virtual robot to the opengl manager.
-    connect(&virtualRobot,SIGNAL(imageDisplayChanged(const NUimage*,GLDisplay::display)),&glManager, SLOT(writeNUimageToDisplay(const NUimage*,GLDisplay::display)));
+    connect(&virtualRobot,SIGNAL(imageDisplayChanged(const NUImage*,GLDisplay::display)),&glManager, SLOT(writeNUImageToDisplay(const NUImage*,GLDisplay::display)));
     connect(&virtualRobot,SIGNAL(lineDisplayChanged(Line*, GLDisplay::display)),&glManager, SLOT(writeLineToDisplay(Line*, GLDisplay::display)));
     connect(&virtualRobot,SIGNAL(classifiedDisplayChanged(ClassifiedImage*, GLDisplay::display)),&glManager, SLOT(writeClassImageToDisplay(ClassifiedImage*, GLDisplay::display)));
     connect(&virtualRobot,SIGNAL(pointsDisplayChanged(std::vector< Vector2<int> >, GLDisplay::display)),&glManager, SLOT(writePointsToDisplay(std::vector< Vector2<int> >, GLDisplay::display)));
@@ -362,6 +391,9 @@ void MainWindow::createConnections()
     connect(&virtualRobot,SIGNAL(cornerPointsDisplayChanged(std::vector< CornerPoint >,GLDisplay::display)),&glManager,SLOT(writeCornersToDisplay(std::vector< CornerPoint >,GLDisplay::display)));
     connect(&virtualRobot,SIGNAL(edgeFilterChanged(QImage, GLDisplay::display)),&glManager,SLOT(stub(QImage, GLDisplay::display)));
     connect(&virtualRobot,SIGNAL(fftChanged(QImage, GLDisplay::display)),&glManager,SLOT(stub(QImage, GLDisplay::display)));
+
+    // Connect Statistics for Classification
+    connect(&virtualRobot,SIGNAL(updateStatistics(float *)),classification,SLOT(updateStatistics(float *)));
 
     // Connect the virtual robot to the incoming packets.
     connect(connection, SIGNAL(PacketReady(QByteArray*)), &virtualRobot, SLOT(ProcessPacket(QByteArray*)));
@@ -559,6 +591,13 @@ void MainWindow::readSettings()
             locWmGlDisplay *lwmDisp = qobject_cast<locWmGlDisplay *>(tempLocwm->widget());
             lwmDisp->restoreState(settings.value("state").toByteArray());
         }
+        else if(windowType == "LUTGlDisplay")
+        {
+            QMdiSubWindow* tempLUTDisp = createLUTGlDisplay();
+            tempLUTDisp->restoreGeometry(settings.value("geometry").toByteArray());
+            LUTGlDisplay *lwmDisp = qobject_cast<LUTGlDisplay *>(tempLUTDisp->widget());
+            lwmDisp->restoreState(settings.value("state").toByteArray());
+        }
     }
 }
 
@@ -592,6 +631,11 @@ void MainWindow::writeSettings()
             locWmGlDisplay* lwmDisp = qobject_cast<locWmGlDisplay *> (mdiWindows[i]->widget());
             settings.setValue("state", lwmDisp->saveState()); // Save size/position
         }
+        else if(windowType == "LUTGlDisplay")
+        {
+            LUTGlDisplay* lutDisp = qobject_cast<LUTGlDisplay *> (mdiWindows[i]->widget());
+            settings.setValue("state", lutDisp->saveState()); // Save size/position
+        }
     }
     settings.endArray();   // end array entry
 }
@@ -606,6 +650,10 @@ QString MainWindow::getMdiWindowType(QWidget* theWidget)
     else if(typeid(*theWidget) == typeid(locWmGlDisplay))
     {
         windowType = QString("locWmGlDisplay");
+    }
+    else if(typeid(*theWidget) == typeid(LUTGlDisplay))
+    {
+        windowType = QString("LUTGlDisplay");
     }
     else
     {
@@ -690,6 +738,15 @@ QMdiSubWindow* MainWindow::createLocWmGlDisplay()
     connect(&LogReader,SIGNAL(LocalisationDataChanged(const Localisation*)),temp, SLOT(SetLocalisation(const Localisation*)));
     connect(LocWmStreamer, SIGNAL(locwmDataChanged(const Localisation*)),temp, SLOT(SetLocalisation(const Localisation*)));
     connect(LocWmStreamer, SIGNAL(fieldObjectDataChanged(const FieldObjects*)),temp, SLOT(setFieldObjects(const FieldObjects*)));
+    QMdiSubWindow* window = mdiArea->addSubWindow(temp);
+    temp->show();
+    return window;
+}
+
+QMdiSubWindow* MainWindow::createLUTGlDisplay()
+{
+    LUTGlDisplay* temp = new LUTGlDisplay(this, &glManager);
+    connect(&virtualRobot,SIGNAL(LUTChanged(unsigned char*)),temp,SLOT(SetLUT(unsigned char*)));
     QMdiSubWindow* window = mdiArea->addSubWindow(temp);
     temp->show();
     return window;

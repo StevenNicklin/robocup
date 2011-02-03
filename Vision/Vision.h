@@ -6,20 +6,22 @@
 #ifndef VISION_H
 #define VISION_H
 
-#include <vector>
-#include <boost/circular_buffer.hpp>
-#include "Tools/Math/Vector2.h"
+#include "Infrastructure/NUImage/ClassifiedImage.h"
+#include "Infrastructure/FieldObjects/FieldObjects.h"
+
 #include "Kinematics/Horizon.h"
-#include "Tools/Image/ClassifiedImage.h"
 #include "ClassifiedSection.h"
 #include "ScanLine.h"
 #include "TransitionSegment.h"
 #include "RobotCandidate.h"
 #include "LineDetection.h"
-#include "FieldObjects/FieldObjects.h"
 #include "ObjectCandidate.h"
 #include "NUPlatform/NUCamera.h"
+#include "Tools/Math/Vector2.h"
 #include "Tools/FileFormats/LUTTools.h"
+
+#include <vector>
+#include <boost/circular_buffer.hpp>
 #include <iostream>
 #include <fstream>
 //#include <QImage>
@@ -27,11 +29,12 @@
 class NUSensorsData;
 class NUActionatorsData;
 class SaveImagesThread;
+class NUPlatform;
 
 #define ORANGE_BALL_DIAMETER 6.5 //IN CM for NEW BALL
 
 class Circle;
-class NUimage;
+class NUImage;
 class JobList;
 class NUIO;
 //! Contains vision processing tools and functions.
@@ -39,13 +42,12 @@ class Vision
 {
 
     private:
-    const NUimage* currentImage;                //!< Storage of a pointer to the raw colour image.
+    const NUImage* currentImage;                //!< Storage of a pointer to the raw colour image.
     const unsigned char* currentLookupTable;    //!< Storage of the current colour lookup table.
     unsigned char* LUTBuffer;                   //!< Storage of the current colour lookup table.
     unsigned char* testLUTBuffer;
     int spacings;
     
-    NUCamera* m_camera;                         //!< pointer to the camera 
     NUSensorsData* m_sensor_data;               //!< pointer to shared sensor data object
     NUActionatorsData* m_actions;               //!< pointer to shared actionators data object
     friend class SaveImagesThread;
@@ -85,9 +87,9 @@ class Vision
     double EFFECTIVE_CAMERA_DISTANCE_IN_PIXELS();
 
 
-    void process (JobList* jobs, NUCamera* camera, NUIO* m_io);
+    void process (JobList* jobs);
 
-    void ProcessFrame(NUimage* image, NUSensorsData* data, NUActionatorsData* actions, FieldObjects* fieldobjects);
+    void ProcessFrame(NUImage* image, NUSensorsData* data, NUActionatorsData* actions, FieldObjects* fieldobjects);
 
     void setFieldObjects(FieldObjects* fieldobjects);
 
@@ -98,7 +100,7 @@ class Vision
     void setLUT(unsigned char* newLUT);
     void loadLUTFromFile(const std::string& fileName);
 
-    void setImage(const NUimage* sourceImage);
+    void setImage(const NUImage* sourceImage);
     int getNumFramesDropped();
     int getNumFramesProcessed();
 
