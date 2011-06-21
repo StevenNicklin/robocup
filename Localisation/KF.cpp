@@ -68,11 +68,14 @@ KF::KF():odom_Model(0.07,0.00005,0.00005,0.000005)
 
 // Process Noise - Matrix Square Root of Q
   sqrtOfProcessNoise = Matrix(7,7,true);
+//  sqrtOfProcessNoise[0][0] = 0.1; // Robot X coord.
+//  sqrtOfProcessNoise[1][1] = 0.1; // Robot Y coord.
+//  sqrtOfProcessNoise[2][2] = 0.001; // Robot Theta. 0.00001
   sqrtOfProcessNoise[0][0] = 0.1; // Robot X coord.
   sqrtOfProcessNoise[1][1] = 0.1; // Robot Y coord.
   sqrtOfProcessNoise[2][2] = 0.001; // Robot Theta. 0.00001
-  sqrtOfProcessNoise[3][3] = 4.0; // Ball X.
-  sqrtOfProcessNoise[4][4] = 4.0; // Ball Y.
+  sqrtOfProcessNoise[3][3] = 8.0; // Ball X.
+  sqrtOfProcessNoise[4][4] = 8.0; // Ball Y.
   sqrtOfProcessNoise[5][5] = 5.6569; // Ball X Velocity.
   sqrtOfProcessNoise[6][6] = 5.6569; // Ball Y Velocity.
 
@@ -280,20 +283,48 @@ void KF::timeUpdate(double deltaTime){
 void KF::timeUpdate(float odom_x, float odom_y, float odom_theta, double deltaTime)
 {
     double deltaTimeSeconds = deltaTime / 1000;
+
+    Matrix updateSd = updateUncertainties;
+
     //-----------------------Update for ball velocity
     stateEstimates[KF::ballX][0] = stateEstimates[3][0] + stateEstimates[5][0]*deltaTimeSeconds; // Update ball x position by ball x velocity.
     stateEstimates[KF::ballY][0] = stateEstimates[4][0] + stateEstimates[6][0]*deltaTimeSeconds; // Update ball y position by ball y velocity.
     stateEstimates[KF::ballXVelocity][0] = c_ballDecayRate*stateEstimates[5][0]; // Reduce ball x velocity assuming deceleration
     stateEstimates[KF::ballYVelocity][0] = c_ballDecayRate*stateEstimates[6][0]; // Reduce ball y velocity assuming deceleration
 
+    // Update mean from odometry
     float mid_theta = stateEstimates[KF::selfTheta][0] + 0.5*odom_theta;
     stateEstimates[KF::selfX][0] = stateEstimates[KF::selfX][0] + odom_x*cos(mid_theta) - odom_y*sin(mid_theta);
     stateEstimates[KF::selfY][0] = stateEstimates[KF::selfY][0] + odom_x*sin(mid_theta) - odom_y*cos(mid_theta);
+    stateEstimates[KF::selfTheta][0] = stateEstimates[KF::selfTheta][0] + odom_theta;
 
 
+    // Estimate noise due to odometry motion
+    float muXx = 0.05;
+    float muXy = 0.0;     // don't know why but it looks like the covariance's should be 0
+    float muYy = 0.05;
+    float muYx = 0.0;
+    float muTt = 0.05;
+    float muXt = 0.0003;
+    float muYt = 0.0003;
 
-// Householder transform. Unscented KF algorithm. Takes a while.
-    stateStandardDeviations=HT(horzcat(updateUncertainties*stateStandardDeviations, sqrtOfProcessNoise));
+    double varX = muXx*fabs(odom_x) + muYx*fabs(odom_y);
+    double varY = muYy*fabs(odom_y) + muXy*fabs(odom_x);
+    double varTheta = muTt*fabs(odom_theta) + muXt*fabs(odom_x) + muYt*fabs(odom_y);
+
+
+    updateSd[KF::selfX][KF::selfX] += muXx*fabs(odom_x);
+    updateSd[KF::selfX][KF::selfY] += muYx*fabs(odom_y);
+    updateSd[KF::selfY][KF::selfY] += muYy*fabs(odom_y);
+    updateSd[KF::selfY][KF::selfX] += muXy*fabs(odom_x);
+    updateSd[KF::selfTheta][KF::selfTheta] += muTt*fabs(odom_theta);
+    updateSd[KF::selfTheta][KF::selfX] += muXt*fabs(odom_x);
+    updateSd[KF::selfTheta][KF::selfY] += muYt*fabs(odom_y);
+
+
+    // Householder transform. Unscented KF algorithm. Takes a while.
+    stateStandardDeviations=HT(horzcat(updateSd*stateStandardDeviations, sqrtOfProcessNoise));
+    //stateStandardDeviations=HT(updateSd*stateStandardDeviations);
     stateEstimates[2][0] = normaliseAngle(stateEstimates[2][0]); // unwrap the robots angle to keep within -pi < theta < pi.
 }
 

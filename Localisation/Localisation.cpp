@@ -16,7 +16,7 @@
 
 #define MULTIPLE_MODELS_ON 1
 #define AMBIGUOUS_CORNERS_ON 0
-#define SHARED_BALL_ON 1
+//#define SHARED_BALL_ON 1
 #define TWO_OBJECT_UPDATE_ON 1
 
 //#define debug_out cout
@@ -177,7 +177,7 @@ void Localisation::process(NUSensorsData* sensor_data, FieldObjects* fobs, const
             m_frame_log << "Time Update - Odometry: (" << fwd << "," << side << "," << turn << ")";
             m_frame_log << " Time Increment: " << time_increment << std::endl;
             #endif
-            doTimeUpdate(fwd, side, turn);
+            doTimeUpdate(fwd, side, turn, time_increment);
             #if LOC_SUMMARY > 0
             m_frame_log << "Result: " << getBestModel().summary();
             #endif
@@ -265,7 +265,7 @@ void Localisation::ProcessObjects(FieldObjects* fobs, const vector<TeamPacket::S
         }
 #endif
 
-
+/*
     // Proccess the Moving Known Field Objects
     MobileObjectsIt currMob(fobs->mobileFieldObjects.begin());
     MobileObjectsConstIt endMob(fobs->mobileFieldObjects.end());
@@ -277,6 +277,7 @@ void Localisation::ProcessObjects(FieldObjects* fobs, const vector<TeamPacket::S
         numUpdates++;
         usefulObjectCount++;
     }
+    */
     NormaliseAlphas();
 
 #if SHARED_BALL_ON
@@ -886,15 +887,16 @@ bool Localisation::clipActiveModelsToField()
     return wasClipped;
 }
 
-bool Localisation::doTimeUpdate(float odomForward, float odomLeft, float odomTurn)
+bool Localisation::doTimeUpdate(float odomForward, float odomLeft, float odomTurn, float deltaTime)
 {
     bool result = false;
     for(int modelID = 0; modelID < c_MAX_MODELS; modelID++)
     {
         if(m_models[modelID].isActive == false) continue; // Skip Inactive models.
         result = true;
-        m_models[modelID].timeUpdate(0);
-        m_models[modelID].performFiltering(odomForward, odomLeft, odomTurn);
+        //m_models[modelID].timeUpdate(0);
+        //m_models[modelID].performFiltering(odomForward, odomLeft, odomTurn);
+        m_models[modelID].timeUpdate(odomForward, odomLeft, odomTurn, deltaTime);
     }
     
 	//------------------------- Trial code for entropy ---- Made to work only on webots as of now
