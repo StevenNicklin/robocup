@@ -74,8 +74,8 @@ KF::KF():odom_Model(0.07,0.00005,0.00005,0.000005)
   sqrtOfProcessNoise[0][0] = 0.1; // Robot X coord.
   sqrtOfProcessNoise[1][1] = 0.1; // Robot Y coord.
   sqrtOfProcessNoise[2][2] = 0.001; // Robot Theta. 0.00001
-  sqrtOfProcessNoise[3][3] = 8.0; // Ball X.
-  sqrtOfProcessNoise[4][4] = 8.0; // Ball Y.
+  sqrtOfProcessNoise[3][3] = 100.0; // Ball X.
+  sqrtOfProcessNoise[4][4] = 100.0; // Ball Y.
   sqrtOfProcessNoise[5][5] = 5.6569; // Ball X Velocity.
   sqrtOfProcessNoise[6][6] = 5.6569; // Ball Y Velocity.
 
@@ -300,11 +300,11 @@ void KF::timeUpdate(float odom_x, float odom_y, float odom_theta, double deltaTi
 
 
     // Estimate noise due to odometry motion
-    float muXx = 0.05;
+    float muXx = 0.01;
     float muXy = 0.0;     // don't know why but it looks like the covariance's should be 0
-    float muYy = 0.05;
+    float muYy = 0.01;
     float muYx = 0.0;
-    float muTt = 0.05;
+    float muTt = 0.01;
     float muXt = 0.0003;
     float muYt = 0.0003;
 

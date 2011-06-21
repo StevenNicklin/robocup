@@ -265,7 +265,6 @@ void Localisation::ProcessObjects(FieldObjects* fobs, const vector<TeamPacket::S
         }
 #endif
 
-/*
     // Proccess the Moving Known Field Objects
     MobileObjectsIt currMob(fobs->mobileFieldObjects.begin());
     MobileObjectsConstIt endMob(fobs->mobileFieldObjects.end());
@@ -277,7 +276,6 @@ void Localisation::ProcessObjects(FieldObjects* fobs, const vector<TeamPacket::S
         numUpdates++;
         usefulObjectCount++;
     }
-    */
     NormaliseAlphas();
 
 #if SHARED_BALL_ON
@@ -646,6 +644,10 @@ void Localisation::doReset()
     #if DEBUG_LOCALISATION_VERBOSITY > 0
     debug_out  << "Performing player reset." << endl;
     #endif // DEBUG_LOCALISATION_VERBOSITY > 0
+
+    #if LOC_SUMMARY > 0
+    m_frame_log << "Performing player reset due to outliers." << std::endl;
+    #endif
 
     ClearAllModels();
 
