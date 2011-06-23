@@ -74,8 +74,8 @@ KF::KF():odom_Model(0.07,0.00005,0.00005,0.000005)
   sqrtOfProcessNoise[0][0] = 0.1; // Robot X coord.
   sqrtOfProcessNoise[1][1] = 0.1; // Robot Y coord.
   sqrtOfProcessNoise[2][2] = 0.001; // Robot Theta. 0.00001
-  sqrtOfProcessNoise[3][3] = 100.0; // Ball X.
-  sqrtOfProcessNoise[4][4] = 100.0; // Ball Y.
+  sqrtOfProcessNoise[3][3] = 20.0; // Ball X.
+  sqrtOfProcessNoise[4][4] = 20.0; // Ball Y.
   sqrtOfProcessNoise[5][5] = 5.6569; // Ball X Velocity.
   sqrtOfProcessNoise[6][6] = 5.6569; // Ball Y Velocity.
 
@@ -106,19 +106,16 @@ KF::KF():odom_Model(0.07,0.00005,0.00005,0.000005)
 // Create square root of W matrix
   sqrtOfTestWeightings = Matrix(1,2*nStates+1,false);
   sqrtOfTestWeightings[0][0] = sqrt(c_Kappa/(nStates+c_Kappa));
-  double outerWeighting = sqrt(1.0/(2*(nStates+c_Kappa)));
+  double outerWeight = sqrt(1.0/(2*(nStates+c_Kappa)));
   for(int i=1; i <= 2*nStates; i++){
-    sqrtOfTestWeightings[0][i] = (outerWeighting);
+    sqrtOfTestWeightings[0][i] = (outerWeight);
   }
-  
-  
   Matrix srukfCovX = Matrix(7,7,false);  // Original covariance mat
   Matrix srukfSq = Matrix(7,7,false);    // State noise square root covariance
   Matrix srukfSr = Matrix(7,7,false);    // Measurement noise square root cov
   Matrix srukfSx = Matrix(7,7,false);
   return;
 }
-
 
 void KF::init(){
   // Initial state estimates
@@ -287,17 +284,16 @@ void KF::timeUpdate(float odom_x, float odom_y, float odom_theta, double deltaTi
     Matrix updateSd = updateUncertainties;
 
     //-----------------------Update for ball velocity
-    stateEstimates[KF::ballX][0] = stateEstimates[3][0] + stateEstimates[5][0]*deltaTimeSeconds; // Update ball x position by ball x velocity.
-    stateEstimates[KF::ballY][0] = stateEstimates[4][0] + stateEstimates[6][0]*deltaTimeSeconds; // Update ball y position by ball y velocity.
-    stateEstimates[KF::ballXVelocity][0] = c_ballDecayRate*stateEstimates[5][0]; // Reduce ball x velocity assuming deceleration
-    stateEstimates[KF::ballYVelocity][0] = c_ballDecayRate*stateEstimates[6][0]; // Reduce ball y velocity assuming deceleration
+    stateEstimates[KF::ballX][0] = stateEstimates[KF::ballX][0] + stateEstimates[KF::ballXVelocity][0]*deltaTimeSeconds; // Update ball x position by ball x velocity.
+    stateEstimates[KF::ballY][0] = stateEstimates[KF::ballY][0] + stateEstimates[KF::ballYVelocity][0]*deltaTimeSeconds; // Update ball y position by ball y velocity.
+    stateEstimates[KF::ballXVelocity][0] = c_ballDecayRate*stateEstimates[KF::ballXVelocity][0]; // Reduce ball x velocity assuming deceleration
+    stateEstimates[KF::ballYVelocity][0] = c_ballDecayRate*stateEstimates[KF::ballYVelocity][0]; // Reduce ball y velocity assuming deceleration
 
-    // Update mean from odometry
+    // Update for odometry
     float mid_theta = stateEstimates[KF::selfTheta][0] + 0.5*odom_theta;
     stateEstimates[KF::selfX][0] = stateEstimates[KF::selfX][0] + odom_x*cos(mid_theta) - odom_y*sin(mid_theta);
     stateEstimates[KF::selfY][0] = stateEstimates[KF::selfY][0] + odom_x*sin(mid_theta) - odom_y*cos(mid_theta);
     stateEstimates[KF::selfTheta][0] = stateEstimates[KF::selfTheta][0] + odom_theta;
-
 
     // Estimate noise due to odometry motion
     float muXx = 0.01;
@@ -312,7 +308,6 @@ void KF::timeUpdate(float odom_x, float odom_y, float odom_theta, double deltaTi
     double varY = muYy*fabs(odom_y) + muXy*fabs(odom_x);
     double varTheta = muTt*fabs(odom_theta) + muXt*fabs(odom_x) + muYt*fabs(odom_y);
 
-
     updateSd[KF::selfX][KF::selfX] += muXx*fabs(odom_x);
     updateSd[KF::selfX][KF::selfY] += muYx*fabs(odom_y);
     updateSd[KF::selfY][KF::selfY] += muYy*fabs(odom_y);
@@ -324,7 +319,6 @@ void KF::timeUpdate(float odom_x, float odom_y, float odom_theta, double deltaTi
 
     // Householder transform. Unscented KF algorithm. Takes a while.
     stateStandardDeviations=HT(horzcat(updateSd*stateStandardDeviations, sqrtOfProcessNoise));
-    //stateStandardDeviations=HT(updateSd*stateStandardDeviations);
     stateEstimates[2][0] = normaliseAngle(stateEstimates[2][0]); // unwrap the robots angle to keep within -pi < theta < pi.
 }
 
@@ -839,7 +833,6 @@ float KF::CalculateAlphaWeighting(const Matrix& innovation, const Matrix& innova
     float fracRes = 1.0 / ( sqrt( pow(2*PI,numMeas)*determinant(innovationVariance) ) );
     return notOutlierLikelyhood * fracRes * expRes + outlierLikelyhood;
 }
-
 
 std::string KF::summary(bool brief) const
 {
