@@ -58,7 +58,7 @@ const float SelfLocalisation::c_LargeAngleSD = PI/2;   //For variance check
 // Object distance measurement error weightings (Constant)
 const float SelfLocalisation::c_obj_theta_variance = 0.02f*0.02f;        // (0.02 rad)^2
 const float SelfLocalisation::c_obj_range_offset_variance = 20.0f*20.0f;     // (20cm)^2
-const float SelfLocalisation::c_obj_range_relative_variance = 0.10f*0.10f;   // 20% of range added
+const float SelfLocalisation::c_obj_range_relative_variance = 0.1f*0.1f;   // 20% of range added
 const float SelfLocalisation::c_centre_circle_heading_variance = (float)(deg2rad(20)*deg2rad(20)); // (10 degrees)^2
 const float SelfLocalisation::c_twoObjectAngleVariance = 0.05f*0.05f; //Small! error in angle difference is normally very small
 
@@ -336,7 +336,7 @@ void SelfLocalisation::process(NUSensorsData* sensor_data, FieldObjects* fobs, c
     {
         float fwd = 0.7*odo[0];
         float side = odo[1];
-        float turn = odo[2];
+        float turn = 0.7*odo[2];
         // perform odometry update and change the variance of the model
 
         #if LOC_SUMMARY_LEVEL > 0
@@ -532,14 +532,14 @@ void SelfLocalisation::ProcessObjects(FieldObjects* fobs, float time_increment)
         StationaryObject& leftYellow = fobs->stationaryFieldObjects[FieldObjects::FO_YELLOW_LEFT_GOALPOST];
         StationaryObject& rightYellow = fobs->stationaryFieldObjects[FieldObjects::FO_YELLOW_RIGHT_GOALPOST];
 
-        if( leftBlue.isObjectVisible() and rightBlue.isObjectVisible())
-        {
-            doTwoObjectUpdate(leftBlue, rightBlue);
-        }
-        if( leftYellow.isObjectVisible() and rightYellow.isObjectVisible())
-        {
-            doTwoObjectUpdate(leftYellow, rightYellow);
-        }
+//        if( leftBlue.isObjectVisible() and rightBlue.isObjectVisible())
+//        {
+//            doTwoObjectUpdate(leftBlue, rightBlue);
+//        }
+//        if( leftYellow.isObjectVisible() and rightYellow.isObjectVisible())
+//        {
+//            doTwoObjectUpdate(leftYellow, rightYellow);
+//        }
     }
     prof.split("Two Object Update");
 
@@ -560,11 +560,14 @@ void SelfLocalisation::ProcessObjects(FieldObjects* fobs, float time_increment)
                 total_corners++;
             }
         }
-        if(total_corners > 2) skip_corners = true;
+        if(total_corners > 3) skip_corners = true;
+
+        AmbiguousObject *leftPost = NULL;
+        AmbiguousObject *rightPost = NULL;
 
         BOOST_FOREACH(AmbiguousObject& ambigous_obj, fobs->ambiguousFieldObjects)
         {
-
+            if(ambigous_obj.isObjectVisible() == false) continue; // Skip objects that were not seen.
             if (skip_corners)
             {
                 if(ambigous_obj.getID() == FieldObjects::FO_CORNER_UNKNOWN_INSIDE_L
@@ -575,21 +578,32 @@ void SelfLocalisation::ProcessObjects(FieldObjects* fobs, float time_increment)
                 }
             }
             if(ambigous_obj.getID() == FieldObjects::FO_OBSTACLE) continue;
-            if(ambigous_obj.isObjectVisible() == false) continue; // Skip objects that were not seen.
             std::vector<int> possible_ids = ambigous_obj.getPossibleObjectIDs();
             std::vector<StationaryObject*> poss_obj;
             poss_obj.reserve(possible_ids.size());
 
             BOOST_FOREACH(unsigned int possible_object_id, possible_ids)
             {
+                if(possible_object_id == FieldObjects::FO_PENALTY_CENTER_PROJECTED_BLUE) continue;
+                if(possible_object_id == FieldObjects::FO_PENALTY_CENTER_PROJECTED_YELLLOW) continue;
+                if(possible_object_id == FieldObjects::FO_BASELINE_CENTER_PROJECTED_YELLOW) continue;
+                if(possible_object_id == FieldObjects::FO_BASELINE_CENTER_PROJECTED_BLUE) continue;
                 poss_obj.push_back(&(fobs->stationaryFieldObjects[possible_object_id]));
             }
             updateResult = ambiguousLandmarkUpdate(ambigous_obj, poss_obj);
             NormaliseAlphas();
             PruneModels();
             numUpdates++;
+            if(ambigous_obj.getName() == "Left Yellow Post") leftPost = &ambigous_obj;
+            if(ambigous_obj.getName() == "Right Yellow Post") rightPost = &ambigous_obj;
             if(ambigous_obj.getID() == FieldObjects::FO_BLUE_GOALPOST_UNKNOWN or ambigous_obj.getID() == FieldObjects::FO_YELLOW_GOALPOST_UNKNOWN)
                 usefulObjectCount++;
+        }
+        if(leftPost and rightPost)
+        {
+            doTwoPostUpdateAmbiguous(fobs, leftPost, rightPost);
+            NormaliseAlphas();
+            PruneModels();
         }
 
 #endif // MULTIPLE_MODELS_ON
@@ -826,6 +840,16 @@ ProcessingRequiredState SelfLocalisation::CheckGameState(bool currently_incapaci
     result.time = true;
     result.measurement = true;
 
+    if(currently_incapacitated)
+    {
+        result.time = false;
+        result.measurement = false;
+        #if LOC_SUMMARY_LEVEL > 0
+        m_frame_log << "Not processing since incapacitated" << std::endl;
+        #endif
+        return result;
+    }
+
     GameInformation::TeamColour team_colour = game_info->getTeamColour();
     int player_number = game_info->getPlayerNumber();
     //m_team_colour = team_colour;
@@ -940,6 +964,7 @@ void SelfLocalisation::doSingleInitialReset(GameInformation::TeamColour team_col
 {
     float initial_heading = 0 + (team_colour==GameInformation::RedTeam?mathGeneral::PI:0);
     float x = 150.f * (team_colour==GameInformation::RedTeam?1.f:-1.f);
+    isInitialising = true;
     initSingleModel(x,0,initial_heading);
     initBallModel(m_ball_filter);
 }
@@ -959,7 +984,7 @@ void SelfLocalisation::doInitialReset(GameInformation::TeamColour team_colour, i
 #if DEBUG_LOCALISATION_VERBOSITY > 0
     debug_out  << "Performing initial->ready reset." << std::endl;
 #endif // DEBUG_LOCALISATION_VERBOSITY > 0
-
+    isInitialising = true;
     clearModels();
 
     // For the probabalistic data association technique we only want a single model present.
@@ -1042,6 +1067,11 @@ void SelfLocalisation::doInitialReset(GameInformation::TeamColour team_colour, i
 
     // Position 4
     temp.setMean(mean_matrix(back_x, right_y, right_heading));
+    positions.push_back(temp);
+
+    // Position 5
+    temp.setCovariance(0.5*covariance_matrix(pow(15.f,2),pow(40.f,2), pow(0.2,2)));
+    temp.setMean(mean_matrix(goal_line_x, 0.0f, centre_heading));
     positions.push_back(temp);
 
 //    // Postition 5
@@ -1183,7 +1213,6 @@ void SelfLocalisation::doPenaltyReset()
 
 void SelfLocalisation::doFallenReset()
 {
-    return;
     Matrix temp;
     #if LOC_SUMMARY_LEVEL > 0
     m_frame_log << "Reset due to fall." << std::endl;
@@ -1199,7 +1228,7 @@ void SelfLocalisation::doFallenReset()
         temp = est.covariance();
         temp[0][0] += 10*10;     // Robot heading
         temp[1][1] += 10*10;     // Robot heading
-        temp[2][2] += 0.1*0.1;     // Robot heading
+        temp[2][2] += 0.5*0.5;     // Robot heading
         est.setCovariance(temp);
         filter->initialiseEstimate(est);
     }
@@ -1423,7 +1452,7 @@ bool SelfLocalisation::doTimeUpdate(float odomForward, float odomLeft, float odo
 
         float xnoise = 0.1 * (odometry[0][0] * ctheta - odometry[1][0] * stheta);
         float ynoise = 0.1 * (odometry[0][0] * stheta + odometry[1][0] * ctheta);
-        float tnoise = 0.1 * odometry[2][0] + 0.0001 * (fabs(odometry[0][0]) + fabs(odometry[1][0]));
+        float tnoise = 0.5 * odometry[2][0] + 0.0001 * (fabs(odometry[0][0]) + fabs(odometry[1][0]));
         prop_odom_noise[0][0] = pow(xnoise, 2);
         prop_odom_noise[1][1] = pow(ynoise, 2);
         prop_odom_noise[2][2] = pow(tnoise, 2);
@@ -1629,6 +1658,130 @@ int SelfLocalisation::doTwoObjectUpdate(StationaryObject &landmark1, StationaryO
     return 1;
 }
 
+/*! @brief Do all of the fancy stuff we only get to do when we have two good reliable objects.
+    @return 1 if good, 0 if bad.
+*/
+int SelfLocalisation::doTwoPostUpdateAmbiguous(FieldObjects *fobs, AmbiguousObject *leftPost, AmbiguousObject *rightPost)
+{
+
+#if LOC_SUMMARY_LEVEL > 0
+    m_frame_log << "Performing 2 object update on objects:\n";
+    m_frame_log << "Left Post -\n";
+    m_frame_log << leftPost->toString() << std::endl;
+    m_frame_log << "Right Post -\n";
+    m_frame_log << rightPost->toString() << std::endl;
+#endif
+
+    // do the special update
+    float angle_beween_objects = mathGeneral::normaliseAngle(leftPost->measuredBearing() - rightPost->measuredBearing());
+
+    Matrix measurement(1,1,false);
+    measurement[0][0] = angle_beween_objects;
+
+    Matrix noise(1,1,false);
+    noise[0][0] = c_twoObjectAngleVariance;
+
+    // Add new position yellow
+    StationaryObject yellowLeft = fobs->stationaryFieldObjects[FieldObjects::FO_YELLOW_LEFT_GOALPOST];
+    yellowLeft.CopyMeasurement(*leftPost);
+    StationaryObject yellowRight = fobs->stationaryFieldObjects[FieldObjects::FO_YELLOW_RIGHT_GOALPOST];
+    yellowRight.CopyMeasurement(*rightPost);
+
+    // Add new position blue
+    StationaryObject blueLeft = fobs->stationaryFieldObjects[FieldObjects::FO_BLUE_LEFT_GOALPOST];
+    blueLeft.CopyMeasurement(*leftPost);
+    StationaryObject blueRight = fobs->stationaryFieldObjects[FieldObjects::FO_BLUE_RIGHT_GOALPOST];
+    blueRight.CopyMeasurement(*rightPost);
+
+    // args are [object1_loc; object2_loc]
+    Matrix yellowArgs(2,2,false);
+    yellowArgs[0][0] = fobs->stationaryFieldObjects[FieldObjects::FO_YELLOW_LEFT_GOALPOST].X();
+    yellowArgs[0][1] = fobs->stationaryFieldObjects[FieldObjects::FO_YELLOW_LEFT_GOALPOST].Y();
+    yellowArgs[1][0] = fobs->stationaryFieldObjects[FieldObjects::FO_YELLOW_RIGHT_GOALPOST].X();
+    yellowArgs[1][1] = fobs->stationaryFieldObjects[FieldObjects::FO_YELLOW_RIGHT_GOALPOST].Y();
+
+    Matrix blueArgs(2,2,false);
+    blueArgs[0][0] = fobs->stationaryFieldObjects[FieldObjects::FO_BLUE_LEFT_GOALPOST].X();
+    blueArgs[0][1] = fobs->stationaryFieldObjects[FieldObjects::FO_BLUE_LEFT_GOALPOST].Y();
+    blueArgs[1][0] = fobs->stationaryFieldObjects[FieldObjects::FO_BLUE_RIGHT_GOALPOST].X();
+    blueArgs[1][1] = fobs->stationaryFieldObjects[FieldObjects::FO_BLUE_RIGHT_GOALPOST].Y();
+
+    bool yellowUsed = false;
+
+    float avg_x;
+    float avg_y;
+    float avg_heading;
+    Vector3<float> empty_3f;
+    Vector2<float> empty_2f;
+    Vector2<int> empty_2i;
+
+    BOOST_FOREACH(IWeightedKalmanFilter* model, m_robot_filters)
+    {
+        MultivariateGaussian estimate = model->estimate();
+
+        IWeightedKalmanFilter *blue = model->Clone();
+        IWeightedKalmanFilter *yellow = model->Clone();
+        yellow->measurementUpdate(measurement, noise, yellowArgs, RobotModel::kangle_between_landmark_measurement);
+        blue->measurementUpdate(measurement, noise, blueArgs, RobotModel::kangle_between_landmark_measurement);
+
+        if(yellow->getFilterWeight() > blue->getFilterWeight())
+        {
+            yellowUsed = true;
+            model->measurementUpdate(measurement, noise, yellowArgs, RobotModel::kangle_between_landmark_measurement);
+        }
+        else
+        {
+            yellowUsed = false;
+            model->measurementUpdate(measurement, noise, blueArgs, RobotModel::kangle_between_landmark_measurement);
+        }
+
+        delete blue;
+        delete yellow;
+    #if LOC_SUMMARY_LEVEL > 0
+        MultivariateGaussian est = model->estimate();
+        m_frame_log << "Model " << model->id() << " updated using " << leftPost->getName() << " + " << rightPost->getName() << " combined measurment." << std::endl;
+        m_frame_log << "Goal chosen: " << (yellowUsed?"Yellow":"Blue") << std::endl;
+        m_frame_log << "Measurement: Angle = " << angle_beween_objects <<std::endl;
+        m_frame_log << "Current State: " << est.mean(0) << ", " << est.mean(1) << ", " << est.mean(2) << std::endl;
+    #endif
+
+        if(yellowUsed)
+        {
+            avg_x = (yellowLeft.X() + yellowRight.X()) / 2.f;
+            avg_y = (yellowLeft.Y() + yellowRight.Y()) / 2.f;
+            avg_heading = (yellowLeft.measuredBearing() + yellowRight.measuredBearing()) / 2.f;
+        }
+        else
+        {
+            avg_x = (blueLeft.X() + blueRight.X()) / 2.f;
+            avg_y = (blueLeft.Y() + blueRight.Y()) / 2.f;
+            avg_heading = (blueLeft.measuredBearing() + blueRight.measuredBearing()) / 2.f;
+        }
+
+        const bool useOutlierModel = true;
+
+        if(useOutlierModel)
+        {
+            float dx = avg_x - estimate.mean(0);
+            float dy = avg_y - estimate.mean(1);
+            float heading = mathGeneral::normaliseAngle(atan2(dy,dx) - avg_heading);
+            bool tooCloseForResetModel = fabs(estimate.mean(0)) < 15.f;
+            if(!tooCloseForResetModel and fabs(mathGeneral::normaliseAngle(heading-estimate.mean(2))) > 0.7f)
+            {
+                estimate.setMean(mean_matrix(estimate.mean(0),estimate.mean(1),heading));
+                IWeightedKalmanFilter* temp = model->Clone();
+                temp->initialiseEstimate(estimate);
+                temp->setFilterWeight(model->getFilterWeight()*0.1);
+                m_robot_filters.push_back(temp);
+                #if LOC_SUMMARY_LEVEL > 0
+                    m_frame_log << "Reset Model Added: " << std::endl << temp->summary(true) << std::endl;
+                #endif
+            }
+        }
+    }
+    return 1;
+}
+
 /*! @brief Perfroms an ambiguous measurement update. This is a interface function to access a variety of methods.
     @return The number of models that were removed during this process.
 */
@@ -1707,10 +1860,15 @@ bool SelfLocalisation::ballUpdate(const MobileObject& ball)
 int SelfLocalisation::PruneModels()
 {
     removeInactiveModels();    // Clear out all deactivated models.
-
+    unsigned int num_before = getNumActiveModels();
     if(m_settings.pruneMethod() == LocalisationSettings::prune_merge)
     {
-        MergeModels(c_MAX_MODELS_AFTER_MERGE);
+        if(isInitialising)
+        {
+            MergeModels(c_MAX_MODELS_AFTER_MERGE_INITIALISING);
+        }else{
+            MergeModels(c_MAX_MODELS_AFTER_MERGE);
+        }
     }
     else if (m_settings.pruneMethod() == LocalisationSettings::prune_max_likelihood)
     {
@@ -1720,13 +1878,21 @@ int SelfLocalisation::PruneModels()
     else if (m_settings.pruneMethod() == LocalisationSettings::prune_viterbi)
     {
         removeSimilarModels();
-        PruneViterbi(8);
+        PruneViterbi(c_MAX_MODELS_AFTER_N_BEST);
     }
     else if (m_settings.pruneMethod() == LocalisationSettings::prune_nscan)
     {
         PruneNScan(3);
     }
     NormaliseAlphas();
+    unsigned int numModels = getNumActiveModels();
+    if(isInitialising and (numModels < 2) or ((num_before > numModels) and (numModels < c_MAX_MODELS_AFTER_MERGE)))
+    {
+#if LOC_SUMMARY_LEVEL > 0
+        m_frame_log << "Initialisation phase complete." << std::endl;
+#endif
+        isInitialising = false;
+    }
     return 0;
 }
 
@@ -1877,17 +2043,20 @@ int SelfLocalisation::ambiguousLandmarkUpdateExhaustive(AmbiguousObject &ambiguo
 
             float expected_distance = sqrt(dX*dX + dY*dY);;
             float expected_heading = mathGeneral::normaliseAngle(atan2(dY,dX) - est.mean(2));
-            m_frame_log << "Model [" << filter->id() << " - > " << temp_mod->id() << "] Ambiguous object update: " << std::string(possible_object->getName());
-            m_frame_log << " exp (" << expected_distance << ", " << expected_heading << ")  Result: ";
             if(temp_mod->active())
             {
-                m_frame_log << "Valid update (Alpha = " << temp_mod->getFilterWeight() << ")";
+                m_frame_log << "Model [" << filter->id() << " - > " << temp_mod->id() << "] Ambiguous object update: " << std::string(possible_object->getName());
+                m_frame_log << " exp (" << expected_distance << ", " << expected_heading << ")  Result: ";
+                if(temp_mod->active())
+                {
+                    m_frame_log << "Valid update (Alpha = " << temp_mod->getFilterWeight() << ")";
+                }
+                else
+                {
+                    m_frame_log << "Outlier";
+                }
+                m_frame_log << std::endl;
             }
-            else
-            {
-                m_frame_log << "Outlier";
-            }
-            m_frame_log << std::endl;
 #endif
         }
         removeInactiveModels(new_models);
@@ -2467,7 +2636,7 @@ void SelfLocalisation::MergeModels(int maxAfterMerge)
     while (getNumActiveModels()>maxAfterMerge)
     {
         MergeModelsBelowThreshold(threshold);
-        threshold*=2.0;
+        threshold*=2.f;
     }
     removeInactiveModels();
     return;
@@ -2537,6 +2706,8 @@ void SelfLocalisation::MergeModelsBelowThreshold(double MergeMetricThreshold)
                 debug_out  << " into Model[" << modelA->id() << "][alpha=" << modelA->getFilterWeight() << "] " << " Merge Metric = " << mergeM << std::endl  ;
 #endif
                 MergeTwoModels(modelA,modelB);
+                i = m_robot_filters.begin();
+                j = i;
             }
         }
     }
@@ -2699,7 +2870,7 @@ float heading_distance(const MultivariateGaussian& a, const MultivariateGaussian
 
 void SelfLocalisation::removeSimilarModels()
 {
-    const float min_trans_dist = 1;
+    const float min_trans_dist = 5;
     const float min_head_dist = 0.01;
 
     BOOST_FOREACH(IWeightedKalmanFilter* filterA, m_robot_filters)

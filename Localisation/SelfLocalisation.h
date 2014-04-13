@@ -25,8 +25,8 @@ class NUSensorsData;
 // 3 - All messages
 // #define  DEBUG_LOCALISATION_VERBOSITY 3
 
-//#define LOC_SUMMARY_LEVEL 3
-#define LOC_SUMMARY_LEVEL 0
+#define LOC_SUMMARY_LEVEL 3
+//#define LOC_SUMMARY_LEVEL 0
 
 class ParentSum
 {
@@ -82,6 +82,7 @@ class SelfLocalisation: public TimestampedData
 
 
         int doTwoObjectUpdate(StationaryObject &landmark1, StationaryObject &landmark2);
+        int doTwoPostUpdateAmbiguous(FieldObjects* fobs, AmbiguousObject *leftPost, AmbiguousObject *rightPost);
         unsigned int getNumActiveModels();
         unsigned int getNumFreeModels();
         const IWeightedKalmanFilter* getBestModel() const;
@@ -216,8 +217,11 @@ class SelfLocalisation: public TimestampedData
         void init();
 
         // Multiple Models Stuff
-        static const int c_MAX_MODELS_AFTER_MERGE = 10; // Max models at the end of the frame
+        bool isInitialising;
+        static const int c_MAX_MODELS_AFTER_MERGE_INITIALISING = 16; // Max models at the end of the frame
+        static const int c_MAX_MODELS_AFTER_MERGE = 8; // Max models at the end of the frame
         static const int c_MAX_MODELS = (c_MAX_MODELS_AFTER_MERGE*12+2); // Total models
+        static const int c_MAX_MODELS_AFTER_N_BEST = 8; // Max models at the end of the frame
 
         std::list<IWeightedKalmanFilter*> m_robot_filters;
 
