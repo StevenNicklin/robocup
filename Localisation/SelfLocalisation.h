@@ -25,7 +25,7 @@ class NUSensorsData;
 // 3 - All messages
 // #define  DEBUG_LOCALISATION_VERBOSITY 3
 
-#define LOC_SUMMARY_LEVEL 3
+#define LOC_SUMMARY_LEVEL 0
 //#define LOC_SUMMARY_LEVEL 0
 
 class ParentSum
