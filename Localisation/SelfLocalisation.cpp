@@ -26,6 +26,8 @@
 #include <boost/foreach.hpp>
 
 
+#define LOC_SUMMARY_LEVEL 0
+
 #define MULTIPLE_MODELS_ON 1
 #define AMBIGUOUS_CORNERS_ON 1
 #define SHARED_BALL_ON 0
