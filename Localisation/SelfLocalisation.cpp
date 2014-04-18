@@ -216,7 +216,7 @@ IWeightedKalmanFilter* SelfLocalisation::newRobotModel()
 
     // set initial settings.
     filter->enableOutlierFiltering();
-    filter->setOutlierThreshold(15.f);
+    filter->setOutlierThreshold(30.f);
     filter->enableWeighting();
     filter->setActive();
     filter->m_creation_time = GetTimestamp();
