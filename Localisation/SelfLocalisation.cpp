@@ -2865,7 +2865,7 @@ float translation_distance(const MultivariateGaussian& a, const MultivariateGaus
 float heading_distance(const MultivariateGaussian& a, const MultivariateGaussian& b)
 {
     float diff_head = a.mean(RobotModel::kstates_heading) - b.mean(RobotModel::kstates_heading);
-    return diff_head;
+    return fabs(diff_head);
 }
 
 void SelfLocalisation::removeSimilarModels()
@@ -2887,6 +2887,10 @@ void SelfLocalisation::removeSimilarModels()
                 float total_alpha = filterA->getFilterWeight() + filterB->getFilterWeight();
                 if(filterA->getFilterWeight() < filterB->getFilterWeight())
                 {
+#if LOC_SUMMARY_LEVEL > 0
+                    m_frame_log << "Model " << filterA->id() << "(" <<  filterA->getFilterWeight() <<
+                                   ") removed, since similar to model " << filterB->id() << "(" <<  filterB->getFilterWeight() << ")" << std::endl;
+#endif
                     filterA->setActive(false);
                     filterB->setFilterWeight(total_alpha);
                 }
@@ -2894,6 +2898,10 @@ void SelfLocalisation::removeSimilarModels()
                 {
                     filterA->setFilterWeight(total_alpha);
                     filterB->setActive(false);
+#if LOC_SUMMARY_LEVEL > 0
+                    m_frame_log << "Model " << filterB->id() << "(" <<  filterB->getFilterWeight() <<
+                                   ") removed, since similar to model " << filterA->id() << "(" <<  filterA->getFilterWeight() << ")" << std::endl;
+#endif
                 }
             }
         }
